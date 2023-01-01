@@ -8,7 +8,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Creating screen window
 pygame.display.set_caption("Laika") # Name of the window (game)
 clock = pygame.time.Clock() # Clock for the game run
 
-level = Level() # game itself
+level = Level(screen) # Game itself
 
 while True:
     for event in pygame.event.get():

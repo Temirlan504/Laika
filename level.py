@@ -1,9 +1,8 @@
 import pygame
 
 class Level:
-    def __init__(self):
-        self.display_surface = pygame.display.get_surface()
-
+    def __init__(self, display_surface):
+        self.display_surface = display_surface
         # Sprite groups
         self.all_sprites = pygame.sprite.Group()
 
