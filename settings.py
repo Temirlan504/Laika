@@ -1,0 +1,1 @@
+WIDTH, HEIGHT = 1280, 720 # Screen width and height
