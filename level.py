@@ -7,8 +7,9 @@ class Level:
         self.display_surface = display_surface
         # Sprite groups
         self.all_sprites = pygame.sprite.Group()
-        self.player = Player((WIDTH/2, HEIGHT/2))
-        self.all_sprites.add(self.player)
+
+        # Player
+        self.player = Player((WIDTH/2, HEIGHT/2), self.all_sprites)
 
     def run(self, dt):
         self.display_surface.fill("black")
