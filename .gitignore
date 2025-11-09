@@ -1,0 +1,73 @@
+# ──────────────────────────────
+# Python
+# ──────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Byte-compiled / C extensions
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ──────────────────────────────
+# OS and editor files
+# ──────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VSCode / IDE configs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ──────────────────────────────
+# Game-specific data
+# ──────────────────────────────
+# Save files and runtime data
+data/save_data.json
+data/world_state.json
+data/*.tmp
+
+# Log files
+*.log
+
+# Cache or temporary game exports
+*.bak
+*.tmp
+*.old
+
+# ────────────────
+# Assets
+# ────────────────
+assets/
+
+# ──────────────────────────────
+# Python packaging / PyInstaller
+# ──────────────────────────────
+*.manifest
+*.spec
+
+# Distribution builds (executables)
+/dist/
+/build/
+/__pycache__/
+
+# ──────────────────────────────
+# Local test and debugging files
+# ──────────────────────────────
+test_*.py
+todo.txt
+notes.txt
