@@ -37,9 +37,7 @@ desktop.ini
 # Game-specific data
 # ──────────────────────────────
 # Save files and runtime data
-data/save_data.json
-data/world_state.json
-data/*.tmp
+data/
 
 # Log files
 *.log
