@@ -16,7 +16,7 @@ class Player(pygame.sprite.Sprite):
 
         # Movement attributes
         self.velocity = pygame.math.Vector2(0, 0)
-        self.speed = 150
+        self.speed = 100
 
     # --- Importing assets into a dictionary and animating player ---
     def import_assets(self):
@@ -62,6 +62,7 @@ class Player(pygame.sprite.Sprite):
         self.rect.x += dx # New position_x = old position_x + delta_x
         self.rect.y += dy # New position_y = old position_y + delta_y
 
+    # --- Player status management (idle, walking, mining, etc.) ---
     def get_status(self):
         # Set idle status if no movement
         if self.velocity.magnitude() == 0:

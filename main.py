@@ -1,7 +1,12 @@
 import pygame
 import sys
 from utils.settings import *
+
 from states.level import LevelState
+from states.pause_menu import PauseMenuState
+from states.state_machine import StateMachine
+
+from player import Player
 
 class Game:
     def __init__(self):
@@ -10,24 +15,31 @@ class Game:
         pygame.display.set_caption("Laika: Space Adventure")
         self.clock = pygame.time.Clock()
 
-        # Start in the Level state
-        self.current_state = LevelState(self)
+        # --- Create Player object ---
+        self.all_sprites = pygame.sprite.Group()
+        self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), self.all_sprites)
 
-    def goto_state(self, new_state):
-        self.current_state = new_state
+        # --- State Machine Setup ---
+        self.state_machine = StateMachine(self)
+        self.state_machine.add_state("level", LevelState)
+        self.state_machine.add_state("pause_menu", PauseMenuState)
+        self.state_machine.change_state("level") # Start with level state
 
     def run(self):
         while True:
             dt = self.clock.tick(FPS) / 1000
 
-            # Handle quitting in a unified way
-            for event in pygame.event.get():
+            # Handle quitting the game
+            events = pygame.event.get()
+            for event in events:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
-            # Run current state
-            self.current_state.run(dt)
+            # Current state logic
+            self.state_machine.current_state.handle_input(events)
+            self.state_machine.run(dt)
+
             pygame.display.update()
 
 if __name__ == "__main__":
