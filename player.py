@@ -1,6 +1,7 @@
 import pygame
 from utils.settings import *
 from utils.support import import_folder
+from utils.timer import Timer
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, group):
@@ -17,6 +18,19 @@ class Player(pygame.sprite.Sprite):
         # Movement attributes
         self.velocity = pygame.math.Vector2(0, 0)
         self.speed = 100
+
+        # Timers
+        self.timers = {
+            'tool_use': Timer(350, self.use_tool)
+        }
+
+        # Tools attributes
+        self.tools = ['hoe', 'pickaxe']
+        self.selected_tool = 'pickaxe'
+
+    # --- Tool use action ---
+    def use_tool(self):
+        print(f"Using {self.selected_tool}!")
 
     # --- Importing assets into a dictionary and animating player ---
     def import_assets(self):
@@ -41,20 +55,37 @@ class Player(pygame.sprite.Sprite):
     # --- Player's direction vectors and movement ---
     def handle_input(self):
         keys = pygame.key.get_pressed()
-        self.velocity.x = 0
-        self.velocity.y = 0
-        if keys[pygame.K_a]:
-            self.velocity.x = -self.speed
-            self.status = 'left'
-        if keys[pygame.K_d]:
-            self.velocity.x = self.speed
-            self.status = 'right'
-        if keys[pygame.K_w]:
-            self.velocity.y = -self.speed
-            self.status = 'up'
-        if keys[pygame.K_s]:
-            self.velocity.y = self.speed
-            self.status = 'down'
+
+        if not self.timers['tool_use'].active:
+            # Movement
+            self.velocity.x = 0
+            self.velocity.y = 0
+            if keys[pygame.K_a]:
+                self.velocity.x = -self.speed
+                self.status = 'left'
+            if keys[pygame.K_d]:
+                self.velocity.x = self.speed
+                self.status = 'right'
+            if keys[pygame.K_w]:
+                self.velocity.y = -self.speed
+                self.status = 'up'
+            if keys[pygame.K_s]:
+                self.velocity.y = self.speed
+                self.status = 'down'
+
+            # Tool use
+            if keys[pygame.K_SPACE]:
+                # Timer for tool use
+                self.timers['tool_use'].activate()
+                self.frame_index = 0
+                # Stop movement when using tool
+                self.velocity = pygame.math.Vector2(0, 0)
+            
+            # Select tool (example with number keys)
+            if keys[pygame.K_1]:
+                self.selected_tool = 'hoe'
+            if keys[pygame.K_2]:
+                self.selected_tool = 'pickaxe'
 
     def move_player(self, dx, dy):
         if self.velocity.magnitude() > 0:
@@ -68,9 +99,17 @@ class Player(pygame.sprite.Sprite):
         if self.velocity.magnitude() == 0:
             self.status = self.status.split('_')[0] + '_idle'
 
+        if self.timers['tool_use'].active:
+            self.status = self.status.split('_')[0] + '_' + self.selected_tool  # Example: using hoe tool
+    
+    def update_timers(self):
+        for timer in self.timers.values():
+            timer.update()
+
     # --- Update player states ---
     def update(self, dt):
         self.handle_input()
         self.get_status()
         self.move_player(self.velocity.x * dt, self.velocity.y * dt)
         self.animate(dt)
+        self.update_timers()
