@@ -14,6 +14,7 @@ class Player(pygame.sprite.Sprite):
         self.image = self.animations[self.status][self.frame_index]
         self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
         self.rect = self.image.get_rect(center=pos) # Postion player's sprite
+        self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
 
         # Movement attributes
         self.velocity = pygame.math.Vector2(0, 0)
