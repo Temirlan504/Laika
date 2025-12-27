@@ -14,6 +14,7 @@ class Player(pygame.sprite.Sprite):
         self.image = self.animations[self.status][self.frame_index]
         self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
         self.rect = self.image.get_rect(center=pos) # Postion player's sprite
+        self.hitbox = self.rect.inflate((-25, -20))  # Adjust hitbox size
         self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
 
         # Movement attributes
@@ -31,7 +32,7 @@ class Player(pygame.sprite.Sprite):
 
     # --- Tool use action ---
     def use_tool(self):
-        print(f"Using {self.selected_tool}!")
+        pass  # Placeholder for tool use logic
 
     # --- Importing assets into a dictionary and animating player ---
     def import_assets(self):
@@ -91,8 +92,14 @@ class Player(pygame.sprite.Sprite):
     def move_player(self, dx, dy):
         if self.velocity.magnitude() > 0:
             self.velocity = self.velocity.normalize()
-        self.rect.x += dx # New position_x = old position_x + delta_x
-        self.rect.y += dy # New position_y = old position_y + delta_y
+
+        # Horizontal movement
+        self.hitbox.x += dx
+
+        # Vertical movement
+        self.hitbox.y += dy
+
+        self.rect.center = self.hitbox.center
 
     # --- Player status management (idle, walking, mining, etc.) ---
     def get_status(self):

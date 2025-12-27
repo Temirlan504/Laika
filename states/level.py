@@ -2,7 +2,6 @@ import pygame
 from utils.settings import *
 from camera import CameraGroup
 from utils.map_loader import MapLoader
-from sprites import GenericSprite
 
 class LevelState:
     def __init__(self, state_machine, game):

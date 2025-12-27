@@ -20,3 +20,10 @@ class CameraGroup(pygame.sprite.Group):
                     offset_rect.x -= offset_x
                     offset_rect.y -= offset_y
                     self.screen.blit(sprite.image, offset_rect)
+
+                    # --- DRAW HITBOX (DEBUG) --- 
+                    if hasattr(sprite, "hitbox"):
+                        offset_hitbox = sprite.hitbox.copy()
+                        offset_hitbox.x -= offset_x
+                        offset_hitbox.y -= offset_y
+                        pygame.draw.rect(self.screen, (255, 0, 0), offset_hitbox, 2)
