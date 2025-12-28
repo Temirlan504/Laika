@@ -2,10 +2,14 @@ import pygame
 from utils.settings import *
 
 class CameraGroup(pygame.sprite.Group):
-    def __init__(self, player, screen):
+    def __init__(self, player, screen, map_width, map_height):
         super().__init__()
         self.player = player
         self.screen = screen
+
+        self.map_width = map_width
+        self.map_height = map_height
+
         self.offset = pygame.math.Vector2()
         self.debug_mode = False # Enable debug mode to draw Player hitbox
 
@@ -13,6 +17,10 @@ class CameraGroup(pygame.sprite.Group):
         # Calculate offset based on player position
         offset_x = self.player.rect.centerx - self.screen.get_width() // 2
         offset_y = self.player.rect.centery - self.screen.get_height() // 2
+
+        # Clamp offset to map boundaries
+        offset_x = max(0, min(offset_x, self.map_width - self.screen.get_width()))
+        offset_y = max(0, min(offset_y, self.map_height - self.screen.get_height()))
 
         for layer in LAYERS.values():
             for sprite in sorted(self.sprites(), key=lambda spr: spr.z_index):

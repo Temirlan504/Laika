@@ -9,13 +9,18 @@ class LevelState:
         self.game = game # Reference to main.py Game class
         self.screen = game.screen
         self.debug_mode = False # Toggle debug mode for collision rectangles
-
-        self.all_sprites = CameraGroup(self.game.player, self.screen)
-        self.collision_sprites = pygame.sprite.Group() # Group for collision objects
-
+        
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
         self.game_map = MapLoader(self.map_path)
+
+        self.all_sprites = CameraGroup(
+            self.game.player,
+            self.screen,
+            self.game_map.map_width,
+            self.game_map.map_height
+        )
+        self.collision_sprites = pygame.sprite.Group() # Group for collision objects
 
         self.setup_level()
 

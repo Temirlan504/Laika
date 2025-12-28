@@ -7,9 +7,12 @@ from utils.settings import *
 class MapLoader:
     def __init__(self, map_path):
         self.map_path = map_path
+        self.tmx_data = load_pygame(self.map_path)
+        self.map_width = self.tmx_data.width * TILE_SIZE
+        self.map_height = self.tmx_data.height * TILE_SIZE
 
     def setup(self, sprite_group, collision_sprites):
-        tmx_data = load_pygame(self.map_path)
+        tmx_data = self.tmx_data
 
         # ---- Import Ground layer ----
         for x, y, tile_surface in tmx_data.get_layer_by_name('ground').tiles():
