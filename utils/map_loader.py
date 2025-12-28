@@ -8,8 +8,11 @@ class MapLoader:
     def __init__(self, map_path):
         self.map_path = map_path
         self.tmx_data = load_pygame(self.map_path)
+
         self.map_width = self.tmx_data.width * TILE_SIZE
         self.map_height = self.tmx_data.height * TILE_SIZE
+
+        self.player_spawnpoint = None
 
     def setup(self, sprite_group, collision_sprites):
         tmx_data = self.tmx_data
@@ -44,3 +47,10 @@ class MapLoader:
                 obj.height * SCALE
             )
             CollisionObject(rect, collision_sprites)
+
+        # --- Get player spawn point ---
+        markers = tmx_data.get_layer_by_name('markers')
+        for obj in markers:
+            if obj.name == 'player_spawnpoint':
+                self.player_spawnpoint = (obj.x * SCALE + (obj.width * SCALE) / 2,
+                                           obj.y * SCALE + (obj.height * SCALE) / 2)

@@ -29,9 +29,16 @@ class LevelState:
         # Load map tiles
         self.game_map.setup(self.all_sprites, self.collision_sprites)
 
-        # Add player to sprite group
-        self.game.player.rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        self.all_sprites.add(self.game.player)
+        # Spawn player
+        if self.game_map.player_spawnpoint:
+            self.game.player.rect.center = self.game_map.player_spawnpoint
+            self.game.player.hitbox.center = self.game_map.player_spawnpoint
+        else:
+            # If no spawn point found, default to center of screen
+            self.game.player.rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+            self.game.player.hitbox.center = self.game.player.rect.center
+
+        self.all_sprites.add(self.game.player) # Add player to sprite group
 
     # --- Pause menu logic ---
     def handle_input(self, events):
