@@ -7,6 +7,7 @@ class CameraGroup(pygame.sprite.Group):
         self.player = player
         self.screen = screen
         self.offset = pygame.math.Vector2()
+        self.debug_mode = False # Enable debug mode to draw Player hitbox
 
     def custom_draw(self):
         # Calculate offset based on player position
@@ -21,9 +22,10 @@ class CameraGroup(pygame.sprite.Group):
                     offset_rect.y -= offset_y
                     self.screen.blit(sprite.image, offset_rect)
 
-                    # --- DRAW HITBOX (DEBUG) --- 
-                    if hasattr(sprite, "hitbox"):
-                        offset_hitbox = sprite.hitbox.copy()
-                        offset_hitbox.x -= offset_x
-                        offset_hitbox.y -= offset_y
-                        pygame.draw.rect(self.screen, (255, 0, 0), offset_hitbox, 2)
+                    # --- DRAW HITBOX (DEBUG) ---
+                    if self.debug_mode:
+                        if hasattr(sprite, "hitbox"):
+                            offset_hitbox = sprite.hitbox.copy()
+                            offset_hitbox.x -= offset_x
+                            offset_hitbox.y -= offset_y
+                            pygame.draw.rect(self.screen, (255, 0, 0), offset_hitbox, 2)

@@ -1,13 +1,14 @@
 import pygame
 from pytmx import load_pygame
 from sprites import GenericSprite
+from collisions import CollisionObject
 from utils.settings import *
 
 class MapLoader:
     def __init__(self, map_path):
         self.map_path = map_path
 
-    def setup(self, sprite_group):
+    def setup(self, sprite_group, collision_sprites):
         tmx_data = load_pygame(self.map_path)
 
         # ---- Import Ground layer ----
@@ -30,7 +31,13 @@ class MapLoader:
                 z_index=LAYERS['cliffs']
             )
 
-        # --- Player spawn point ---
-        for obj in tmx_data.get_layer_by_name('markers'):
-            if obj.name == 'player_spawnpoint':
-                self.player_spawn = (obj.x, obj.y)
+        # --- Import collision objects rectangles ---
+        SCALE = TILE_SIZE / tmx_data.tilewidth
+        for obj in tmx_data.get_layer_by_name('collisions'):
+            rect = pygame.Rect(
+                obj.x * SCALE,
+                obj.y * SCALE,
+                obj.width * SCALE,
+                obj.height * SCALE
+            )
+            CollisionObject(rect, collision_sprites)

@@ -18,8 +18,8 @@ class Player(pygame.sprite.Sprite):
         self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
 
         # Movement attributes
-        self.velocity = pygame.math.Vector2(0, 0)
-        self.speed = 100
+        self.direction = pygame.math.Vector2(0, 0)
+        self.speed = 150
 
         # Timers
         self.timers = {
@@ -60,19 +60,20 @@ class Player(pygame.sprite.Sprite):
 
         if not self.timers['tool_use'].active:
             # Movement
-            self.velocity.x = 0
-            self.velocity.y = 0
+            self.direction.x = 0
+            self.direction.y = 0
+
             if keys[pygame.K_a]:
-                self.velocity.x = -self.speed
+                self.direction.x = -1
                 self.status = 'left'
             if keys[pygame.K_d]:
-                self.velocity.x = self.speed
+                self.direction.x = 1
                 self.status = 'right'
             if keys[pygame.K_w]:
-                self.velocity.y = -self.speed
+                self.direction.y = -1
                 self.status = 'up'
             if keys[pygame.K_s]:
-                self.velocity.y = self.speed
+                self.direction.y = 1
                 self.status = 'down'
 
             # Tool use
@@ -81,7 +82,7 @@ class Player(pygame.sprite.Sprite):
                 self.timers['tool_use'].activate()
                 self.frame_index = 0
                 # Stop movement when using tool
-                self.velocity = pygame.math.Vector2(0, 0)
+                self.direction = pygame.math.Vector2(0, 0)
             
             # Select tool (example with number keys)
             if keys[pygame.K_1]:
@@ -89,22 +90,35 @@ class Player(pygame.sprite.Sprite):
             if keys[pygame.K_2]:
                 self.selected_tool = 'pickaxe'
 
-    def move_player(self, dx, dy):
-        if self.velocity.magnitude() > 0:
-            self.velocity = self.velocity.normalize()
+    # --- Move player and handle collisions ---
+    def move_player(self, dt, collision_sprites):
+        if self.direction.magnitude() > 0:
+            self.direction = self.direction.normalize()
 
-        # Horizontal movement
-        self.hitbox.x += dx
+        # Horizontal movement and collision detection
+        self.hitbox.x += self.direction.x * self.speed * dt
+        for sprite in collision_sprites:
+            if self.hitbox.colliderect(sprite.rect):
+                if self.direction.x > 0:  # Moving right
+                    self.hitbox.right = sprite.rect.left
+                if self.direction.x < 0:  # Moving left
+                    self.hitbox.left = sprite.rect.right
 
-        # Vertical movement
-        self.hitbox.y += dy
+        # Vertical movement and collision detection
+        self.hitbox.y += self.direction.y * self.speed * dt
+        for sprite in collision_sprites:
+            if self.hitbox.colliderect(sprite.rect):
+                if self.direction.y > 0:  # Moving down
+                    self.hitbox.bottom = sprite.rect.top
+                if self.direction.y < 0:  # Moving up
+                    self.hitbox.top = sprite.rect.bottom
 
         self.rect.center = self.hitbox.center
 
     # --- Player status management (idle, walking, mining, etc.) ---
     def get_status(self):
         # Set idle status if no movement
-        if self.velocity.magnitude() == 0:
+        if self.direction.magnitude() == 0:
             self.status = self.status.split('_')[0] + '_idle'
 
         if self.timers['tool_use'].active:
@@ -115,9 +129,9 @@ class Player(pygame.sprite.Sprite):
             timer.update()
 
     # --- Update player states ---
-    def update(self, dt):
+    def update(self, dt, collision_sprites):
         self.handle_input()
         self.get_status()
-        self.move_player(self.velocity.x * dt, self.velocity.y * dt)
+        self.move_player(dt, collision_sprites)
         self.animate(dt)
         self.update_timers()
