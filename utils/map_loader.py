@@ -48,9 +48,25 @@ class MapLoader:
             )
             CollisionObject(rect, collision_sprites)
 
+        # --- Import Spaceship (tile object) ---
+        for obj in tmx_data.get_layer_by_name('spaceship'):
+            if obj.name == 'spaceship' and obj.gid:
+                image = obj.image
+                image = pygame.transform.scale(
+                    image,
+                    (int(obj.width * SCALE), int(obj.height * SCALE))
+                )
+                GenericSprite(
+                    pos=(obj.x * SCALE, obj.y * SCALE),
+                    surface=image,
+                    groups=sprite_group,
+                    z_index=LAYERS['spaceship']
+                )
+
+
         # --- Get player spawn point ---
         markers = tmx_data.get_layer_by_name('markers')
         for obj in markers:
             if obj.name == 'player_spawnpoint':
                 self.player_spawnpoint = (obj.x * SCALE + (obj.width * SCALE) / 2,
-                                           obj.y * SCALE + (obj.height * SCALE) / 2)
+                                          obj.y * SCALE + (obj.height * SCALE) / 2)

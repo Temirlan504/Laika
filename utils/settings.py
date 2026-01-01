@@ -6,5 +6,6 @@ FPS = 60
 LAYERS = {
     'ground': 1,
     'cliffs': 2,
-    'player': 3,
+    'spaceship': 2,
+    'player': 2,
 }

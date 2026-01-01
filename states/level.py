@@ -8,7 +8,7 @@ class LevelState:
         self.state_machine = state_machine
         self.game = game # Reference to main.py Game class
         self.screen = game.screen
-        self.debug_mode = False # Toggle debug mode for collision rectangles
+        self.debug_mode = True # Toggle debug mode for collision rectangles
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'

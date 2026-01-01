@@ -6,34 +6,27 @@ class CameraGroup(pygame.sprite.Group):
         super().__init__()
         self.player = player
         self.screen = screen
-
         self.map_width = map_width
         self.map_height = map_height
-
-        self.offset = pygame.math.Vector2()
-        self.debug_mode = False # Enable debug mode to draw Player hitbox
+        self.debug_mode = True
 
     def custom_draw(self):
-        # Calculate offset based on player position
+        # Camera offset
         offset_x = self.player.rect.centerx - self.screen.get_width() // 2
         offset_y = self.player.rect.centery - self.screen.get_height() // 2
 
-        # Clamp offset to map boundaries
         offset_x = max(0, min(offset_x, self.map_width - self.screen.get_width()))
         offset_y = max(0, min(offset_y, self.map_height - self.screen.get_height()))
 
-        for layer in LAYERS.values():
-            for sprite in sorted(self.sprites(), key=lambda spr: spr.z_index):
-                if sprite.z_index == layer:
-                    offset_rect = sprite.rect.copy()
-                    offset_rect.x -= offset_x
-                    offset_rect.y -= offset_y
-                    self.screen.blit(sprite.image, offset_rect)
+        sprites = sorted(
+            self.sprites(),
+            key=lambda spr: (spr.z_index, spr.rect.centery)
+        )
 
-                    # --- DRAW HITBOX (DEBUG) ---
-                    if self.debug_mode:
-                        if hasattr(sprite, "hitbox"):
-                            offset_hitbox = sprite.hitbox.copy()
-                            offset_hitbox.x -= offset_x
-                            offset_hitbox.y -= offset_y
-                            pygame.draw.rect(self.screen, (255, 0, 0), offset_hitbox, 2)
+        for sprite in sprites:
+            offset_rect = sprite.rect.move(-offset_x, -offset_y)
+            self.screen.blit(sprite.image, offset_rect)
+
+            if self.debug_mode and hasattr(sprite, "hitbox"):
+                offset_hitbox = sprite.hitbox.move(-offset_x, -offset_y)
+                pygame.draw.rect(self.screen, (255, 0, 0), offset_hitbox, 2)
