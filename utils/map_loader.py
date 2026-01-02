@@ -1,6 +1,6 @@
 import pygame
 from pytmx import load_pygame
-from sprites import GenericSprite
+from sprites import GenericSprite, InteractionSprite
 from collisions import CollisionObject
 from utils.settings import *
 
@@ -14,7 +14,7 @@ class MapLoader:
 
         self.player_spawnpoint = None
 
-    def setup(self, sprite_group, collision_sprites):
+    def setup(self, sprite_group, collision_sprites, interaction_sprites):
         tmx_data = self.tmx_data
 
         # ---- Import Ground layer ----
@@ -62,7 +62,13 @@ class MapLoader:
                     groups=sprite_group,
                     z_index=LAYERS['spaceship']
                 )
-
+            if obj.name == 'interaction_zone':
+                InteractionSprite(
+                    pos=(obj.x * SCALE, obj.y * SCALE),
+                    size=(obj.width * SCALE, obj.height * SCALE),
+                    groups=interaction_sprites,
+                    name=obj.name
+                )
 
         # --- Get player spawn point ---
         markers = tmx_data.get_layer_by_name('markers')

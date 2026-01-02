@@ -8,7 +8,7 @@ class CameraGroup(pygame.sprite.Group):
         self.screen = screen
         self.map_width = map_width
         self.map_height = map_height
-        self.debug_mode = True
+        self.debug_mode = False
 
     def custom_draw(self):
         # Camera offset
