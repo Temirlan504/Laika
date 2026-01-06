@@ -20,6 +20,7 @@ class Player(pygame.sprite.Sprite):
         # Movement attributes
         self.direction = pygame.math.Vector2(0, 0)
         self.speed = 150
+        self.input_blocked = False
 
         # Timers
         self.timers = {
@@ -56,6 +57,8 @@ class Player(pygame.sprite.Sprite):
 
     # --- Player's direction vectors and movement ---
     def handle_input(self):
+        if self.input_blocked:
+            return
         keys = pygame.key.get_pressed()
 
         if not self.timers['tool_use'].active:
@@ -89,6 +92,14 @@ class Player(pygame.sprite.Sprite):
                 self.selected_tool = 'hoe'
             if keys[pygame.K_2]:
                 self.selected_tool = 'pickaxe'
+
+    # --- Block and unblock player input (e.g., during sleep) ---
+    def block_input(self):
+        self.input_blocked = True
+        self.direction = pygame.math.Vector2(0, 0)
+
+    def unblock_input(self):
+        self.input_blocked = False
 
     # --- Move player and handle collisions ---
     def move_player(self, dt, collision_sprites):

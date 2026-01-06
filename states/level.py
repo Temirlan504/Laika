@@ -1,13 +1,17 @@
 import pygame
 from utils.settings import *
-from camera import CameraGroup
+from utils.fade_effect import FadeEffect
 from utils.map_loader import MapLoader
+from camera import CameraGroup
 
 class LevelState:
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
         self.game = game # Reference to main.py Game class
         self.screen = game.screen
+        self.fade_effect = FadeEffect(self.screen)
+        self.sleeping = False
+
         self.debug_mode = False # Toggle debug mode for collision rectangles
         
         # Load Tiled map
@@ -23,10 +27,6 @@ class LevelState:
         self.collision_sprites = pygame.sprite.Group() # Group for collision objects
         self.interaction_zones = pygame.sprite.Group() # Group for interaction zones
         self.dynamic_sprites = pygame.sprite.Group() # Group for sprites that need updates
-        
-        # Font for interaction text
-        self.font = pygame.font.Font(None, 36)
-        self.current_interaction = None  # Store current interaction zone
 
         self.setup_level()
 
@@ -53,10 +53,36 @@ class LevelState:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.state_machine.change_state("pause_menu")
+                # Player sleep logic
                 elif event.key == pygame.K_e:
                     # Check if player is in an interaction zone
                     if self.current_interaction:
-                        print("SOL+1")  # Placeholder for sleep action
+                        self.start_sleep()
+                        self.game.day_cycle.sleep()
+    
+    # --- Player sleep sequence with fade effect ---
+    def start_sleep(self):
+        if self.sleeping:
+            return
+
+        self.sleeping = True
+        self.game.player.block_input()
+
+        # Fade to black, then advance day
+        self.fade_effect.fade_in(self.on_fade_out_complete)
+
+    def on_fade_out_complete(self):
+        # This runs when screen is fully black
+        self.game.day_cycle.sleep()
+
+        # Fade back in
+        self.fade_effect.fade_out(self.on_fade_in_complete)
+
+
+    def on_fade_in_complete(self):
+        # Sleep finished
+        self.sleeping = False
+        self.game.player.unblock_input()
 
     # --- Check collision and update sprites ---
     def check_collisions(self, dt):
@@ -72,6 +98,11 @@ class LevelState:
             if self.game.player.hitbox.colliderect(zone.rect):
                 self.current_interaction = zone
                 break
+        
+        if self.current_interaction:
+            self.game.interaction_prompt.show("Press E to Sleep")
+        else:
+            self.game.interaction_prompt.hide()
 
     # --- Draw debug rectangles for collision objects ---
     def draw_debug(self):
@@ -88,24 +119,12 @@ class LevelState:
                 offset_rect.x -= self.all_sprites.player.rect.centerx - self.screen.get_width() // 2
                 offset_rect.y -= self.all_sprites.player.rect.centery - self.screen.get_height() // 2
                 pygame.draw.rect(self.screen, (0, 0, 255), offset_rect, 2)
-    
-    # --- Draw interaction prompt ---
-    def draw_interaction_prompt(self):
-        if self.current_interaction:
-            text = "Press E to sleep"
-            text_surface = self.font.render(text, True, (255, 255, 255))
-            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, 50))
-            
-            # Draw background for text
-            bg_rect = text_rect.inflate(20, 10)
-            pygame.draw.rect(self.screen, (0, 0, 0, 180), bg_rect)
-            pygame.draw.rect(self.screen, (255, 255, 255), bg_rect, 2)
-            
-            self.screen.blit(text_surface, text_rect)
 
     def run(self, dt):
         self.screen.fill((184, 88, 88))
         self.all_sprites.custom_draw()
         self.draw_debug() # Draw collision hitboxes for debugging
-        self.draw_interaction_prompt()  # Draw "Press E" text
-        self.check_collisions(dt)
+        self.fade_effect.draw()
+        self.fade_effect.update(dt)
+        if not self.sleeping:
+            self.check_collisions(dt)

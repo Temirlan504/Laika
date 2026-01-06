@@ -1,11 +1,12 @@
 import pygame
 import sys
 from utils.settings import *
-
 from states.level import LevelState
 from states.pause_menu import PauseMenuState
 from states.state_machine import StateMachine
-
+from ui.ui_manager import UIManager
+from ui.hud import DayUI
+from ui.interaction_ui import InteractionPrompt
 from player import Player
 
 class Game:
@@ -15,9 +16,22 @@ class Game:
         pygame.display.set_caption("Laika: Space Adventure")
         self.clock = pygame.time.Clock()
 
-        # --- Create Player object ---
+        # --- Create GLOBAL player object ---
         self.all_sprites = pygame.sprite.Group()
         self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), self.all_sprites)
+
+        # --- Create Day Cycle System ---
+        from systems.day_cycle import DayCycle
+        self.day_cycle = DayCycle()
+
+        # --- UI Manager and UI Elements ---
+        self.ui_manager = UIManager()
+
+        self.day_ui = DayUI(self.day_cycle, self.screen)
+        self.interaction_prompt = InteractionPrompt(self.screen)
+
+        self.ui_manager.add(self.day_ui)
+        self.ui_manager.add(self.interaction_prompt)
 
         # --- State Machine Setup ---
         self.state_machine = StateMachine(self)
@@ -39,6 +53,9 @@ class Game:
             # Current state logic
             self.state_machine.current_state.handle_input(events)
             self.state_machine.run(dt)
+
+            # Draw UI elements
+            self.ui_manager.draw()
 
             pygame.display.update()
 
