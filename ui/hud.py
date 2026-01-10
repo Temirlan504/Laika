@@ -2,9 +2,10 @@ import pygame
 from ui.ui_element import UIElement
 
 class DayUI(UIElement):
-    def __init__(self, day_cycle, screen):
+    def __init__(self, day_cycle, clock, screen):
         super().__init__()
         self.day_cycle = day_cycle
+        self.clock = clock
         self.screen = screen
         self.font = pygame.font.Font(None, 26)
 
@@ -15,7 +16,7 @@ class DayUI(UIElement):
         self.day = day
 
     def draw(self):
-        text = f"SOL {self.day}"
+        text = f"SOL {self.day} | {self.clock.time_string()}"
         surface = self.font.render(text, True, (255, 255, 255))
         rect = surface.get_rect(topright=(self.screen.get_width() - 20, 20))
 

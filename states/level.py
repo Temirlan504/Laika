@@ -55,10 +55,11 @@ class LevelState:
                     self.state_machine.change_state("pause_menu")
                 # Player sleep logic
                 elif event.key == pygame.K_e:
-                    # Check if player is in an interaction zone
                     if self.current_interaction:
-                        self.start_sleep()
-                        self.game.day_cycle.sleep()
+                        if self.game.clock_system.can_sleep():
+                            self.start_sleep()
+                        else:
+                            print("Too early to sleep")
     
     # --- Player sleep sequence with fade effect ---
     def start_sleep(self):
@@ -72,15 +73,12 @@ class LevelState:
         self.fade_effect.fade_in(self.on_fade_out_complete)
 
     def on_fade_out_complete(self):
-        # This runs when screen is fully black
-        self.game.day_cycle.sleep()
-
-        # Fade back in
+        self.game.day_cycle.next_day()
+        self.game.clock_system.set_time(6, 0)
+        self.game.day_cycle.start_new_day()
         self.fade_effect.fade_out(self.on_fade_in_complete)
 
-
     def on_fade_in_complete(self):
-        # Sleep finished
         self.sleeping = False
         self.game.player.unblock_input()
 

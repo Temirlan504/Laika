@@ -24,10 +24,15 @@ class Game:
         from systems.day_cycle import DayCycle
         self.day_cycle = DayCycle()
 
+        # --- Create Clock System ---
+        from systems.clock_system import ClockSystem
+        self.clock_system = ClockSystem(self.day_cycle)
+        self.clock_system.subscribe(self.day_cycle)
+
         # --- UI Manager and UI Elements ---
         self.ui_manager = UIManager()
 
-        self.day_ui = DayUI(self.day_cycle, self.screen)
+        self.day_ui = DayUI(self.day_cycle, self.clock_system, self.screen)
         self.interaction_prompt = InteractionPrompt(self.screen)
 
         self.ui_manager.add(self.day_ui)
@@ -50,6 +55,9 @@ class Game:
                     pygame.quit()
                     sys.exit()
 
+            # Update clock system
+            self.clock_system.update(dt)
+            
             # Current state logic
             self.state_machine.current_state.handle_input(events)
             self.state_machine.run(dt)
