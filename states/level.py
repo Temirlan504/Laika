@@ -1,6 +1,6 @@
 import pygame
 from utils.settings import *
-from utils.fade_effect import FadeEffect
+from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
 from camera import CameraGroup
 
@@ -10,6 +10,7 @@ class LevelState:
         self.game = game # Reference to main.py Game class
         self.screen = game.screen
         self.fade_effect = FadeEffect(self.screen)
+        self.night_overlay = NightOverlay(self.game.clock_system, self.screen)
         self.sleeping = False
 
         self.debug_mode = False # Toggle debug mode for collision rectangles
@@ -120,9 +121,17 @@ class LevelState:
 
     def run(self, dt):
         self.screen.fill((184, 88, 88))
-        self.all_sprites.custom_draw()
-        self.draw_debug() # Draw collision hitboxes for debugging
-        self.fade_effect.draw()
+
+        # --- Update ---
         self.fade_effect.update(dt)
+        self.night_overlay.update()
+
         if not self.sleeping:
             self.check_collisions(dt)
+
+        # --- Draw ---
+        self.all_sprites.custom_draw()
+        self.draw_debug()
+
+        self.night_overlay.draw()
+        self.fade_effect.draw()

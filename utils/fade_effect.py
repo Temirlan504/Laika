@@ -1,4 +1,3 @@
-# utils/fade_effect.py
 import pygame
 
 class FadeEffect:
@@ -56,3 +55,44 @@ class FadeEffect:
     @property
     def blocking(self):
         return self.active or self.alpha > 0
+
+
+class NightOverlay:
+    def __init__(self, clock_system, screen):
+        self.clock = clock_system
+        self.screen = screen
+
+        self.max_alpha = 140  # how dark midnight is (tweak this)
+        self.alpha = 0
+
+        # Night color (bluish)
+        self.surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+        self.surface.fill((20, 30, 60))
+
+    def update(self):
+        hour = self.clock.hour
+        minute = self.clock.minute
+        self.alpha = self._calculate_alpha(hour, minute)
+
+    def _calculate_alpha(self, hour, minute):
+        time = hour + minute / 60.0
+
+        # 16:00 → 00:00 (fade IN)
+        if 16 <= time < 24:
+            t = (time - 16) / 8.0   # 0 → 1
+            return int(t * self.max_alpha)
+
+        # 00:00 → 06:00 (fade OUT)
+        if 0 <= time < 6:
+            t = time / 6.0          # 0 → 1
+            return int((1 - t) * self.max_alpha)
+
+        # Daytime
+        return 0
+
+    def draw(self):
+        if self.alpha <= 0:
+            return
+
+        self.surface.set_alpha(self.alpha)
+        self.screen.blit(self.surface, (0, 0))
