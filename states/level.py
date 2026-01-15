@@ -3,6 +3,7 @@ from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
 from camera import CameraGroup
+from building.preview import DomePreview
 
 class LevelState:
     def __init__(self, state_machine, game):
@@ -13,7 +14,7 @@ class LevelState:
         self.night_overlay = NightOverlay(self.game.clock_system, self.screen)
         self.sleeping = False
 
-        self.debug_mode = False # Toggle debug mode for collision rectangles
+        self.debug_mode = True # Toggle debug mode for collision rectangles
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
@@ -28,6 +29,10 @@ class LevelState:
         self.collision_sprites = pygame.sprite.Group() # Group for collision objects
         self.interaction_zones = pygame.sprite.Group() # Group for interaction zones
         self.dynamic_sprites = pygame.sprite.Group() # Group for sprites that need updates
+
+        # Load greenhouse image
+        dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        self.preview = DomePreview(dome_image)
 
         self.setup_level()
 
@@ -76,7 +81,6 @@ class LevelState:
     def on_fade_out_complete(self):
         self.game.day_cycle.next_day()
         self.game.clock_system.set_time(6, 0)
-        self.game.day_cycle.start_new_day()
         self.fade_effect.fade_out(self.on_fade_in_complete)
 
     def on_fade_in_complete(self):
@@ -119,8 +123,16 @@ class LevelState:
                 offset_rect.y -= self.all_sprites.player.rect.centery - self.screen.get_height() // 2
                 pygame.draw.rect(self.screen, (0, 0, 255), offset_rect, 2)
 
+    def mouse_to_world(self):
+        mouse_screen_pos = pygame.mouse.get_pos()
+        mouse_world_pos = pygame.Vector2(
+            mouse_screen_pos[0] + self.all_sprites.offset.x,
+            mouse_screen_pos[1] + self.all_sprites.offset.y
+        )
+        return mouse_world_pos
+
     def run(self, dt):
-        self.screen.fill((184, 88, 88))
+        self.screen.fill('black')
 
         # --- Update ---
         self.fade_effect.update(dt)
@@ -129,8 +141,11 @@ class LevelState:
         if not self.sleeping:
             self.check_collisions(dt)
 
+        self.preview.set_position(self.mouse_to_world())
+
         # --- Draw ---
         self.all_sprites.custom_draw()
+        self.preview.draw(self.screen, self.all_sprites.offset)
         self.draw_debug()
 
         self.night_overlay.draw()

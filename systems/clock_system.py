@@ -1,7 +1,7 @@
 class ClockSystem:
     def __init__(self, day_cycle):
         self.minutes = 6 * 60  # start at 06:00
-        self.speed = 60        # 1 real second = 1 in-game minute
+        self.speed = 250
         self.day_cycle = day_cycle
         self.subscribers = []
 
