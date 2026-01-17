@@ -101,28 +101,84 @@ class Player(pygame.sprite.Sprite):
     def unblock_input(self):
         self.input_blocked = False
 
+    # --- Helper function to check mask collision ---
+    def check_mask_collision(self, sprite):
+        """Check if player's hitbox collides with sprite's mask"""
+        if not hasattr(sprite, 'mask') or not sprite.mask:
+            return False
+        
+        offset_x = sprite.rect.left - self.hitbox.left
+        offset_y = sprite.rect.top - self.hitbox.top
+        
+        player_mask = pygame.mask.Mask(self.hitbox.size)
+        player_mask.fill()
+        
+        return player_mask.overlap(sprite.mask, (offset_x, offset_y)) is not None
+
     # --- Move player and handle collisions ---
     def move_player(self, dt, collision_sprites):
         if self.direction.magnitude() > 0:
             self.direction = self.direction.normalize()
 
         # Horizontal movement and collision detection
+        original_x = self.hitbox.x
         self.hitbox.x += self.direction.x * self.speed * dt
+        
         for sprite in collision_sprites:
-            if self.hitbox.colliderect(sprite.rect):
-                if self.direction.x > 0:  # Moving right
-                    self.hitbox.right = sprite.rect.left
-                if self.direction.x < 0:  # Moving left
-                    self.hitbox.left = sprite.rect.right
+            if hasattr(sprite, 'mask') and sprite.mask:
+                # Mask-based collision
+                if self.hitbox.colliderect(sprite.rect) and self.check_mask_collision(sprite):
+                    # Binary search to find exact collision point
+                    low, high = 0.0, 1.0
+                    for _ in range(8):  # 8 iterations for precision
+                        mid = (low + high) / 2
+                        self.hitbox.x = original_x + self.direction.x * self.speed * dt * mid
+                        
+                        if self.check_mask_collision(sprite):
+                            high = mid
+                        else:
+                            low = mid
+                    
+                    # Place player just before collision
+                    self.hitbox.x = original_x + self.direction.x * self.speed * dt * low
+                    break
+            else:
+                # Rectangle collision for objects without masks
+                if self.hitbox.colliderect(sprite.rect):
+                    if self.direction.x > 0:  # Moving right
+                        self.hitbox.right = sprite.rect.left
+                    if self.direction.x < 0:  # Moving left
+                        self.hitbox.left = sprite.rect.right
 
         # Vertical movement and collision detection
+        original_y = self.hitbox.y
         self.hitbox.y += self.direction.y * self.speed * dt
+        
         for sprite in collision_sprites:
-            if self.hitbox.colliderect(sprite.rect):
-                if self.direction.y > 0:  # Moving down
-                    self.hitbox.bottom = sprite.rect.top
-                if self.direction.y < 0:  # Moving up
-                    self.hitbox.top = sprite.rect.bottom
+            if hasattr(sprite, 'mask') and sprite.mask:
+                # Mask-based collision
+                if self.hitbox.colliderect(sprite.rect) and self.check_mask_collision(sprite):
+                    # Binary search to find exact collision point
+                    low, high = 0.0, 1.0
+                    for _ in range(8):  # 8 iterations for precision
+                        mid = (low + high) / 2
+                        self.hitbox.y = original_y + self.direction.y * self.speed * dt * mid
+                        
+                        if self.check_mask_collision(sprite):
+                            high = mid
+                        else:
+                            low = mid
+                    
+                    # Place player just before collision
+                    self.hitbox.y = original_y + self.direction.y * self.speed * dt * low
+                    break
+            else:
+                # Rectangle collision for objects without masks
+                if self.hitbox.colliderect(sprite.rect):
+                    if self.direction.y > 0:  # Moving down
+                        self.hitbox.bottom = sprite.rect.top
+                    if self.direction.y < 0:  # Moving up
+                        self.hitbox.top = sprite.rect.bottom
 
         self.rect.center = self.hitbox.center
 

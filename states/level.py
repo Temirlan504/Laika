@@ -1,4 +1,5 @@
 import pygame
+from sprites import GreenhouseDome
 from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
@@ -66,7 +67,18 @@ class LevelState:
                             self.start_sleep()
                         else:
                             print("Too early to sleep")
-    
+            
+            # Mouse click events
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.preview.valid:
+                    dome = GreenhouseDome(
+                        center_pos=self.preview.rect.center,
+                        image=self.preview.base_image,
+                        groups=[self.all_sprites, self.collision_sprites]
+                    )
+                    self.all_sprites.add(dome)
+                    self.collision_sprites.add(dome)
+
     # --- Player sleep sequence with fade effect ---
     def start_sleep(self):
         if self.sleeping:
@@ -130,6 +142,34 @@ class LevelState:
             mouse_screen_pos[1] + self.all_sprites.offset.y
         )
         return mouse_world_pos
+    
+    def can_place_dome(self, preview, obstacles):
+        # First check if dome would overlap with player
+        if preview.rect.colliderect(self.game.player.hitbox):
+            offset_x = self.game.player.hitbox.x - preview.rect.x
+            offset_y = self.game.player.hitbox.y - preview.rect.y
+            
+            # Create a mask for player hitbox
+            player_mask = pygame.mask.Mask(self.game.player.hitbox.size)
+            player_mask.fill()
+            
+            if preview.mask.overlap(player_mask, (offset_x, offset_y)):
+                return False
+        
+        # Then check against other obstacles (all should have masks now)
+        for obj in obstacles:
+            if not preview.rect.colliderect(obj.rect):
+                continue
+
+            # Use mask collision for all objects
+            if hasattr(obj, "mask") and obj.mask:
+                # Offset is from preview to obj (where obj is relative to preview)
+                offset_x = obj.rect.x - preview.rect.x
+                offset_y = obj.rect.y - preview.rect.y
+
+                if preview.mask.overlap(obj.mask, (offset_x, offset_y)):
+                    return False
+        return True
 
     def run(self, dt):
         self.screen.fill('black')
@@ -142,6 +182,12 @@ class LevelState:
             self.check_collisions(dt)
 
         self.preview.set_position(self.mouse_to_world())
+
+        valid = self.can_place_dome(
+            self.preview,
+            self.collision_sprites.sprites()
+        )
+        self.preview.set_valid(valid)
 
         # --- Draw ---
         self.all_sprites.custom_draw()
