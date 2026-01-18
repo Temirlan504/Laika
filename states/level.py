@@ -37,6 +37,7 @@ class LevelState:
 
         # Load greenhouse image
         dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        dome_image = pygame.transform.scale(dome_image, (612, 429))
         self.preview = DomePreview(dome_image)
 
         self.setup_level()
