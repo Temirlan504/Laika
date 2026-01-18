@@ -15,7 +15,11 @@ class LevelState:
         self.night_overlay = NightOverlay(self.game.clock_system, self.screen)
         self.sleeping = False
 
-        self.debug_mode = True # Toggle debug mode for collision rectangles
+        self.build_mode = False  # Toggle for build mode
+        self.delete_mode = False  # Toggle for delete domes mode
+        self.dome_sprites = pygame.sprite.Group()  # Track all placed domes
+
+        self.debug_mode = False # Toggle debug mode for collision rectangles
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
@@ -67,17 +71,48 @@ class LevelState:
                             self.start_sleep()
                         else:
                             print("Too early to sleep")
+                
+                # Toggle build mode with B key
+                elif event.key == pygame.K_b:
+                    self.build_mode = not self.build_mode
+                    if self.build_mode:
+                        self.delete_mode = False  # Disable delete mode
+                    print(f"Build mode: {'ON' if self.build_mode else 'OFF'}")
+                
+                # Toggle delete mode with X key
+                elif event.key == pygame.K_x:
+                    self.delete_mode = not self.delete_mode
+                    if self.delete_mode:
+                        self.build_mode = False  # Disable build mode
+                    print(f"Delete mode: {'ON' if self.delete_mode else 'OFF'}")
             
             # Mouse click events
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if self.preview.valid:
-                    dome = GreenhouseDome(
-                        center_pos=self.preview.rect.center,
-                        image=self.preview.base_image,
-                        groups=[self.all_sprites, self.collision_sprites]
-                    )
-                    self.all_sprites.add(dome)
-                    self.collision_sprites.add(dome)
+                if self.delete_mode:
+                    # Delete mode: remove dome at mouse position
+                    mouse_world_pos = self.mouse_to_world()
+                    for dome in self.dome_sprites:
+                        if dome.rect.collidepoint(mouse_world_pos):
+                            # Check mask collision for precise deletion
+                            local_x = int(mouse_world_pos.x - dome.rect.x)
+                            local_y = int(mouse_world_pos.y - dome.rect.y)
+                            
+                            if (0 <= local_x < dome.rect.width and 
+                                0 <= local_y < dome.rect.height):
+                                if dome.mask.get_at((local_x, local_y)):
+                                    # Remove from all groups
+                                    dome.kill()
+                                    print("Dome deleted!")
+                                    break
+                elif self.build_mode:
+                    # Build mode: place dome
+                    if self.preview.valid:
+                        dome = GreenhouseDome(
+                            center_pos=self.preview.rect.center,
+                            image=self.preview.base_image,
+                            groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
+                        )
+                        print("Dome placed!")
 
     # --- Player sleep sequence with fade effect ---
     def start_sleep(self):
@@ -171,6 +206,17 @@ class LevelState:
                     return False
         return True
 
+    def draw_delete_cursor(self):
+        mouse_screen_pos = pygame.mouse.get_pos()
+        # Draw a red X or circle at mouse position
+        pygame.draw.circle(self.screen, (255, 0, 0), mouse_screen_pos, 10, 2)
+        pygame.draw.line(self.screen, (255, 0, 0), 
+                        (mouse_screen_pos[0] - 7, mouse_screen_pos[1] - 7),
+                        (mouse_screen_pos[0] + 7, mouse_screen_pos[1] + 7), 2)
+        pygame.draw.line(self.screen, (255, 0, 0),
+                        (mouse_screen_pos[0] + 7, mouse_screen_pos[1] - 7),
+                        (mouse_screen_pos[0] - 7, mouse_screen_pos[1] + 7), 2)
+
     def run(self, dt):
         self.screen.fill('black')
 
@@ -181,18 +227,24 @@ class LevelState:
         if not self.sleeping:
             self.check_collisions(dt)
 
-        self.preview.set_position(self.mouse_to_world())
-
-        valid = self.can_place_dome(
-            self.preview,
-            self.collision_sprites.sprites()
-        )
-        self.preview.set_valid(valid)
+        # Only show preview in build mode
+        if self.build_mode:
+            self.preview.set_position(self.mouse_to_world())
+            valid = self.can_place_dome(
+                self.preview,
+                self.collision_sprites.sprites()
+            )
+            self.preview.set_valid(valid)
 
         # --- Draw ---
         self.all_sprites.custom_draw()
-        self.preview.draw(self.screen, self.all_sprites.offset)
+        
+        if self.build_mode:
+            self.preview.draw(self.screen, self.all_sprites.offset)
+        elif self.delete_mode:
+            # Show delete cursor/indicator
+            self.draw_delete_cursor()
+        
         self.draw_debug()
-
         self.night_overlay.draw()
         self.fade_effect.draw()
