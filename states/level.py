@@ -5,6 +5,7 @@ from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
 from camera import CameraGroup
 from building.preview import DomePreview
+from systems.time_system_fsm import SleepState
 
 class LevelState:
     def __init__(self, state_machine, game):
@@ -13,7 +14,9 @@ class LevelState:
         self.screen = game.screen
         self.fade_effect = FadeEffect(self.screen)
         self.night_overlay = NightOverlay(self.game.clock_system, self.screen)
-        self.sleeping = False
+
+        self.sleep_state_machine = SleepState
+        self.sleep_state = self.sleep_state_machine.AWAKE
 
         self.build_mode = False  # Toggle for build mode
         self.delete_mode = False  # Toggle for delete domes mode
@@ -117,22 +120,27 @@ class LevelState:
 
     # --- Player sleep sequence with fade effect ---
     def start_sleep(self):
-        if self.sleeping:
+        if self.sleep_state != self.sleep_state_machine.AWAKE:
             return
 
-        self.sleeping = True
+        self.sleep_state = self.sleep_state_machine.FADING_OUT
         self.game.player.block_input()
-
-        # Fade to black, then advance day
         self.fade_effect.fade_in(self.on_fade_out_complete)
 
     def on_fade_out_complete(self):
-        self.game.day_cycle.next_day()
+        self.sleep_state = self.sleep_state_machine.ASLEEP
+
+        # Advance day if not already done
+        self.game.day_cycle.try_advance_day("sleep")
+
+        # Jump to morning = new cycle
         self.game.clock_system.set_time(6, 0)
+        self.game.day_cycle.reset_cycle()
+
         self.fade_effect.fade_out(self.on_fade_in_complete)
 
     def on_fade_in_complete(self):
-        self.sleeping = False
+        self.sleep_state = self.sleep_state_machine.AWAKE
         self.game.player.unblock_input()
 
     # --- Check collision and update sprites ---
@@ -225,7 +233,7 @@ class LevelState:
         self.fade_effect.update(dt)
         self.night_overlay.update()
 
-        if not self.sleeping:
+        if self.sleep_state == self.sleep_state_machine.AWAKE:
             self.check_collisions(dt)
 
         # Only show preview in build mode
