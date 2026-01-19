@@ -78,7 +78,12 @@ class LevelState:
 
                     # --- Dome door interaction ---
                     if isinstance(zone, DoorInteractionZone):
-                        self.state_machine.change_state("greenhouse")
+                        if self.current_greenhouse:
+                            # Enter the specific greenhouse
+                            self.state_machine.change_state(
+                                "greenhouse",
+                                greenhouse_id=self.current_greenhouse.greenhouse_id
+                            )
                         return
 
                     # --- Sleep interaction (Tiled) ---
@@ -117,6 +122,10 @@ class LevelState:
                             if (0 <= local_x < dome.rect.width and 
                                 0 <= local_y < dome.rect.height):
                                 if dome.mask.get_at((local_x, local_y)):
+                                    for zone in self.interaction_zones:
+                                        if isinstance(zone, DoorInteractionZone) and zone.owner == dome:
+                                            zone.kill()
+                                            break
                                     # Remove from all groups
                                     dome.kill()
                                     print("Dome deleted!")
@@ -181,13 +190,25 @@ class LevelState:
         
         # Check if player is in any interaction zone
         self.current_interaction = None
+        self.current_greenhouse = None
+        
+        # Check all interaction zones
         for zone in self.interaction_zones:
             if self.game.player.hitbox.colliderect(zone.rect):
                 self.current_interaction = zone
+                
+                # If it's a door zone, also set current_greenhouse
+                if isinstance(zone, DoorInteractionZone):
+                    self.current_greenhouse = zone.owner
                 break
         
+        # Update interaction prompt based on zone type
         if self.current_interaction:
-            self.game.interaction_prompt.show(self.current_interaction.text)
+            if isinstance(self.current_interaction, DoorInteractionZone):
+                self.game.interaction_prompt.show("Press E to Enter Greenhouse")
+            else:
+                # Tiled interaction zones (bed, etc.)
+                self.game.interaction_prompt.show(self.current_interaction.text)
         else:
             self.game.interaction_prompt.hide()
 

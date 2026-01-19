@@ -17,6 +17,7 @@ class InteractionSprite(GenericSprite):
         self.text = text
 
 class GreenhouseDome(pygame.sprite.Sprite):
+    _next_id = 1  # Class variable to assign unique IDs
     def __init__(self, center_pos, image, groups, z_index=2):
         super().__init__(groups)
         self.door_offset = pygame.Vector2(230, 200)  # Door position relative to dome center
@@ -39,3 +40,6 @@ class GreenhouseDome(pygame.sprite.Sprite):
                     self.mask.set_at((x, y), 1)
         
         self.z_index = z_index
+        self.greenhouse_id = GreenhouseDome._next_id
+        GreenhouseDome._next_id += 1
+        print(f"Created GreenhouseDome with ID: {self.greenhouse_id}")
