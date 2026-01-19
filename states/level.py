@@ -166,13 +166,11 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = self.sleep_state_machine.ASLEEP
-
-        # Advance day if not already done
+        self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
 
-        # Jump to morning = new cycle
+        # Jump to morning
         self.game.clock_system.set_time(6, 0)
-        self.game.day_cycle.reset_cycle()
 
         self.fade_effect.fade_out(self.on_fade_in_complete)
 
