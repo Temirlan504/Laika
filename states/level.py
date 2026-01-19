@@ -6,6 +6,7 @@ from utils.map_loader import MapLoader
 from camera import CameraGroup
 from building.preview import DomePreview
 from systems.time_system_fsm import SleepState
+from building.door import DoorInteractionZone
 
 class LevelState:
     def __init__(self, state_machine, game):
@@ -22,7 +23,7 @@ class LevelState:
         self.delete_mode = False  # Toggle for delete domes mode
         self.dome_sprites = pygame.sprite.Group()  # Track all placed domes
 
-        self.debug_mode = False # Toggle debug mode for collision rectangles
+        self.debug_mode = True # Toggle debug mode for collision rectangles
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
@@ -62,19 +63,31 @@ class LevelState:
         self.all_sprites.add(self.game.player) # Add player to sprite group
         self.dynamic_sprites.add(self.game.player) # Add player to dynamic sprites
 
-    # --- Pause menu logic ---
+    # --- Player-Level input ---
     def handle_input(self, events):
         for event in events:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.state_machine.change_state("pause_menu")
-                # Player sleep logic
+
+                # Interaction key
                 elif event.key == pygame.K_e:
-                    if self.current_interaction:
+                    if not self.current_interaction:
+                        return
+                    zone = self.current_interaction
+
+                    # --- Dome door interaction ---
+                    if isinstance(zone, DoorInteractionZone):
+                        self.state_machine.change_state("greenhouse")
+                        return
+
+                    # --- Sleep interaction (Tiled) ---
+                    if zone.text == "Press E to Sleep":
                         if self.game.clock_system.can_sleep():
                             self.start_sleep()
                         else:
                             print("Too early to sleep")
+
                 
                 # Toggle build mode with B key
                 elif event.key == pygame.K_b:
@@ -116,7 +129,22 @@ class LevelState:
                             image=self.preview.base_image,
                             groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
                         )
-                        print("Dome placed!")
+
+                        # ---- Create door interaction zone ----
+                        door_world_pos = (
+                            pygame.Vector2(dome.rect.center)
+                            + dome.door_offset
+                        )
+
+                        door_rect = pygame.Rect(0, 0, 96, 48)  # Width x Height of door zone
+                        door_rect.center = door_world_pos
+
+                        zone = DoorInteractionZone(
+                            rect=door_rect,
+                            owner=dome,
+                            text="Press E to Enter"
+                        )
+                        self.interaction_zones.add(zone)
 
     # --- Player sleep sequence with fade effect ---
     def start_sleep(self):
@@ -159,7 +187,7 @@ class LevelState:
                 break
         
         if self.current_interaction:
-            self.game.interaction_prompt.show("Press E to Sleep")
+            self.game.interaction_prompt.show(self.current_interaction.text)
         else:
             self.game.interaction_prompt.hide()
 

@@ -3,6 +3,7 @@ import sys
 from utils.settings import *
 from states.level import LevelState
 from states.pause_menu import PauseMenuState
+from states.greenhouse import GreenhouseState
 from states.state_machine import StateMachine
 from ui.ui_manager import UIManager
 from ui.hud import DayUI
@@ -42,7 +43,10 @@ class Game:
         self.state_machine = StateMachine(self)
         self.state_machine.add_state("level", LevelState)
         self.state_machine.add_state("pause_menu", PauseMenuState)
+        self.state_machine.add_state("greenhouse", GreenhouseState)
         self.state_machine.change_state("level") # Start with level state
+
+        self.day_cycle.subscribe(self.state_machine.current_state)
 
     def run(self):
         while True:

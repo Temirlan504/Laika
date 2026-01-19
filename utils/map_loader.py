@@ -67,7 +67,8 @@ class MapLoader:
                     pos=(obj.x * SCALE, obj.y * SCALE),
                     size=(obj.width * SCALE, obj.height * SCALE),
                     groups=interaction_sprites,
-                    name=obj.name
+                    name=obj.name,
+                    text="Press E to Sleep"
                 )
 
         # --- Get player spawn point ---
