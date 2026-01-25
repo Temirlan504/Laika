@@ -8,4 +8,6 @@ LAYERS = {
     'cliffs': 2,
     'spaceship': 2,
     'player': 2,
+    'walls': 2,
+    'furniture': 2,
 }

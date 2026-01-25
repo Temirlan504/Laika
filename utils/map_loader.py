@@ -14,66 +14,102 @@ class MapLoader:
 
         self.player_spawnpoint = None
 
+    def has_layer(self, name):
+        return name in self.tmx_data.layernames
+
     def setup(self, sprite_group, collision_sprites, interaction_sprites):
         tmx_data = self.tmx_data
-
-        # ---- Import Ground layer ----
-        for x, y, tile_surface in tmx_data.get_layer_by_name('ground').tiles():
-            tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
-            GenericSprite(
-                pos=(x * TILE_SIZE, y * TILE_SIZE),
-                surface=tile_surface,
-                groups=sprite_group,
-                z_index=LAYERS['ground']
-            )
-
-        # ---- Import Cliffs layer ----
-        for x, y, tile_surface in tmx_data.get_layer_by_name('cliffs').tiles():
-            tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
-            GenericSprite(
-                pos=(x * TILE_SIZE, y * TILE_SIZE),
-                surface=tile_surface,
-                groups=sprite_group,
-                z_index=LAYERS['cliffs']
-            )
-
-        # --- Import collision objects rectangles ---
         SCALE = TILE_SIZE / tmx_data.tilewidth
-        for obj in tmx_data.get_layer_by_name('collisions'):
-            rect = pygame.Rect(
-                obj.x * SCALE,
-                obj.y * SCALE,
-                obj.width * SCALE,
-                obj.height * SCALE
-            )
-            CollisionObject(rect, collision_sprites)
 
-        # --- Import Spaceship (tile object) ---
-        for obj in tmx_data.get_layer_by_name('spaceship'):
-            if obj.name == 'spaceship' and obj.gid:
-                image = obj.image
-                image = pygame.transform.scale(
-                    image,
-                    (int(obj.width * SCALE), int(obj.height * SCALE))
-                )
+        # ---- Ground ----
+        if self.has_layer('ground'):
+            for x, y, tile_surface in tmx_data.get_layer_by_name('ground').tiles():
+                tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
                 GenericSprite(
-                    pos=(obj.x * SCALE, obj.y * SCALE),
-                    surface=image,
+                    pos=(x * TILE_SIZE, y * TILE_SIZE),
+                    surface=tile_surface,
                     groups=sprite_group,
-                    z_index=LAYERS['spaceship']
-                )
-            if obj.name == 'interaction_zone':
-                InteractionSprite(
-                    pos=(obj.x * SCALE, obj.y * SCALE),
-                    size=(obj.width * SCALE, obj.height * SCALE),
-                    groups=interaction_sprites,
-                    name=obj.name,
-                    text="Press E to Sleep"
+                    z_index=LAYERS['ground']
                 )
 
-        # --- Get player spawn point ---
-        markers = tmx_data.get_layer_by_name('markers')
-        for obj in markers:
-            if obj.name == 'player_spawnpoint':
-                self.player_spawnpoint = (obj.x * SCALE + (obj.width * SCALE) / 2,
-                                          obj.y * SCALE + (obj.height * SCALE) / 2)
+        # ---- Cliffs ----
+        if self.has_layer('cliffs'):
+            for x, y, tile_surface in tmx_data.get_layer_by_name('cliffs').tiles():
+                tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
+                GenericSprite(
+                    pos=(x * TILE_SIZE, y * TILE_SIZE),
+                    surface=tile_surface,
+                    groups=sprite_group,
+                    z_index=LAYERS['cliffs']
+                )
+        
+        # ---- Walls ----
+        if self.has_layer('walls'):
+            for x, y, tile_surface in tmx_data.get_layer_by_name('walls').tiles():
+                tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
+                sprite = GenericSprite(
+                    pos=(x * TILE_SIZE, y * TILE_SIZE),
+                    surface=tile_surface,
+                    groups=sprite_group,
+                    z_index=LAYERS['walls']
+                )
+
+        # ---- Collisions ----
+        if self.has_layer('collisions'):
+            for obj in tmx_data.get_layer_by_name('collisions'):
+                rect = pygame.Rect(
+                    obj.x * SCALE,
+                    obj.y * SCALE,
+                    obj.width * SCALE,
+                    obj.height * SCALE
+                )
+                CollisionObject(rect, collision_sprites)
+
+        # ---- Spaceship + interactions ----
+        if self.has_layer('spaceship'):
+            for obj in tmx_data.get_layer_by_name('spaceship'):
+                if obj.name == 'spaceship' and obj.gid:
+                    image = obj.image
+                    image = pygame.transform.scale(
+                        image,
+                        (int(obj.width * SCALE), int(obj.height * SCALE))
+                    )
+                    GenericSprite(
+                        pos=(obj.x * SCALE, obj.y * SCALE),
+                        surface=image,
+                        groups=sprite_group,
+                        z_index=LAYERS['spaceship']
+                    )
+
+                if obj.name == 'interaction_zone':
+                    InteractionSprite(
+                        pos=(obj.x * SCALE, obj.y * SCALE),
+                        size=(obj.width * SCALE, obj.height * SCALE),
+                        groups=interaction_sprites,
+                        name=obj.name,
+                        text="Press E to Sleep"
+                    )
+
+        # ---- Furniture ----
+        if self.has_layer('furniture'):
+            for obj in tmx_data.get_layer_by_name('furniture'):
+                if obj.gid:
+                    image = pygame.transform.scale(
+                        obj.image,
+                        (int(obj.width * SCALE), int(obj.height * SCALE))
+                    )
+                    sprite = GenericSprite(
+                        pos=(obj.x * SCALE, obj.y * SCALE),
+                        surface=image,
+                        groups=sprite_group,
+                        z_index=LAYERS['furniture']
+                    )
+
+        # ---- Player spawn ----
+        if self.has_layer('markers'):
+            for obj in tmx_data.get_layer_by_name('markers'):
+                if obj.name == 'player_spawnpoint':
+                    self.player_spawnpoint = (
+                        obj.x * SCALE + (obj.width * SCALE) / 2,
+                        obj.y * SCALE + (obj.height * SCALE) / 2
+                    )

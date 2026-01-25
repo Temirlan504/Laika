@@ -23,7 +23,7 @@ class LevelState:
         self.delete_mode = False  # Toggle for delete domes mode
         self.dome_sprites = pygame.sprite.Group()  # Track all placed domes
 
-        self.debug_mode = True # Toggle debug mode for collision rectangles
+        self.debug_mode = False # Toggle debug mode for collision rectangles
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
