@@ -1,6 +1,7 @@
 import pygame
 from pytmx import load_pygame
 from sprites import GenericSprite, InteractionSprite
+from greenhouse.soil import SoilTile
 from collisions import CollisionObject
 from utils.settings import *
 
@@ -17,9 +18,13 @@ class MapLoader:
     def has_layer(self, name):
         return name in self.tmx_data.layernames
 
-    def setup(self, sprite_group, collision_sprites, interaction_sprites):
+    def setup(self, sprite_group, collision_sprites, interaction_sprites, soil_sprites=None):
         tmx_data = self.tmx_data
         SCALE = TILE_SIZE / tmx_data.tilewidth
+
+        # print("TMX layers:")
+        # for layer in self.tmx_data.layers:
+        #     print(layer.name, type(layer))
 
         # ---- Ground ----
         if self.has_layer('ground'):
@@ -104,6 +109,20 @@ class MapLoader:
                         groups=sprite_group,
                         z_index=LAYERS['furniture']
                     )
+
+        # --- Import soil rectangles ---
+        if self.has_layer('soil') and soil_sprites is not None:
+            for obj in tmx_data.get_layer_by_name('soil'):
+                rect = pygame.Rect(
+                    obj.x * SCALE,
+                    obj.y * SCALE,
+                    obj.width * SCALE,
+                    obj.height * SCALE
+                )
+                SoilTile(
+                    rect=rect,
+                    groups=[sprite_group, soil_sprites]
+                )
 
         # ---- Player spawn ----
         if self.has_layer('markers'):

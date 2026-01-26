@@ -92,7 +92,6 @@ class LevelState:
                             self.start_sleep()
                         else:
                             print("Too early to sleep")
-
                 
                 # Toggle build mode with B key
                 elif event.key == pygame.K_b:

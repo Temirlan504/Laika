@@ -9,6 +9,7 @@ class Player(pygame.sprite.Sprite):
         self.import_assets()
         self.status = 'down_idle'
         self.frame_index = 0
+        self.events = []
 
         # Player placeholder
         self.image = self.animations[self.status][self.frame_index]
@@ -24,16 +25,50 @@ class Player(pygame.sprite.Sprite):
 
         # Timers
         self.timers = {
-            'tool_use': Timer(350, self.use_tool)
+            'tool_use': Timer(300, self.use_tool)
         }
 
         # Tools attributes
-        self.tools = ['hoe', 'pickaxe']
+        self.tools = ['hoe', 'pickaxe', 'watering_can', 'seed']
         self.selected_tool = 'pickaxe'
+        self.tool_ray_length = 18  # pixels
+
+    def consume_events(self):
+        events = self.events.copy()
+        self.events.clear()
+        return events
+
+    def use_tool(self):
+        target_pos = self.get_target_pos()
+
+        if self.selected_tool == 'hoe':
+            self.events.append(('hoe', target_pos))
+
+        if self.selected_tool == 'watering_can':
+            self.events.append(('water', target_pos))
+
+        if self.selected_tool == 'seed':
+            self.events.append(('plant', target_pos))
 
     # --- Tool use action ---
-    def use_tool(self):
-        pass  # Placeholder for tool use logic
+    def get_target_pos(self):
+        """Return a position slightly in front of the player (tool ray)"""
+        direction = pygame.math.Vector2(0, 0)
+
+        if 'up' in self.status:
+            direction.y = -1
+        elif 'down' in self.status:
+            direction.y = 1
+        elif 'left' in self.status:
+            direction.x = -1
+        elif 'right' in self.status:
+            direction.x = 1
+
+        # Default to under player if idle
+        if direction.length() == 0:
+            return self.hitbox.center
+
+        return self.hitbox.center + direction * self.tool_ray_length
 
     # --- Importing assets into a dictionary and animating player ---
     def import_assets(self):
@@ -42,6 +77,8 @@ class Player(pygame.sprite.Sprite):
             'up': [], 'down': [], 'left': [], 'right': [],
             'up_hoe': [], 'down_hoe': [], 'left_hoe': [], 'right_hoe': [],
             'up_pickaxe': [], 'down_pickaxe': [], 'left_pickaxe': [], 'right_pickaxe': [],
+            'up_watering_can': [], 'down_watering_can': [], 'left_watering_can': [], 'right_watering_can': [],
+            'up_seed': [], 'down_seed': [], 'left_seed': [], 'right_seed': []
         }
 
         for animation in self.animations.keys():
@@ -92,8 +129,12 @@ class Player(pygame.sprite.Sprite):
                 self.selected_tool = 'hoe'
             if keys[pygame.K_2]:
                 self.selected_tool = 'pickaxe'
+            if keys[pygame.K_3]:
+                self.selected_tool = 'watering_can'
+            if keys[pygame.K_4]:
+                self.selected_tool = 'seed'
 
-    # --- Block and unblock player input (e.g., during sleep) ---
+    # --- Block and unblock player input ---
     def block_input(self):
         self.input_blocked = True
         self.direction = pygame.math.Vector2(0, 0)
