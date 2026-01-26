@@ -2,6 +2,7 @@ import pygame
 from utils.settings import LAYERS
 from greenhouse.plant import Plant
 from utils.timer import Timer
+from utils.settings import TILE_SIZE
 
 class SoilTile(pygame.sprite.Sprite):
     def __init__(self, rect, groups, z_index=LAYERS['ground']):
@@ -12,6 +13,7 @@ class SoilTile(pygame.sprite.Sprite):
 
         self.state = "dry"
         self.plant = None
+        self.tile_pos = (rect.x // TILE_SIZE, rect.y // TILE_SIZE)
 
         # Timer for plant growth (in milliseconds)
         self.growth_timer = Timer(1500000000, self.advance_plant)

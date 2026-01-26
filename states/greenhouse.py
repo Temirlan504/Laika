@@ -13,12 +13,13 @@ class GreenhouseState:
         self.current_greenhouse_id = None
         self.greenhouses = {}
 
-    def on_enter(self, greenhouse_id=None, **kwargs):
+    def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
+        self.return_pos = return_pos
 
         if greenhouse_id not in self.greenhouses:
             self.greenhouses[greenhouse_id] = {
-                'crops': [],
+                'soil': {},
                 'name': f'Greenhouse {greenhouse_id}'
             }
 
@@ -45,6 +46,17 @@ class GreenhouseState:
             self.soil_sprites
         )
 
+        soil_data = self.greenhouses[greenhouse_id]['soil']
+
+        for soil in self.soil_sprites:
+            key = soil.tile_pos
+
+            if key in soil_data:
+                saved = soil_data[key]
+                soil.state = saved['state']
+                soil.plant = saved['plant']
+                soil.update_visual()
+
         # Spawn player inside greenhouse
         if self.map_loader.player_spawnpoint:
             self.game.player.rect.center = self.map_loader.player_spawnpoint
@@ -54,17 +66,41 @@ class GreenhouseState:
 
         self.game.interaction_prompt.hide()
 
+    def save_soil_state(self):
+        soil_data = {}
+
+        for soil in self.soil_sprites:
+            soil_data[soil.tile_pos] = {
+                'state': soil.state,
+                'plant': soil.plant
+            }
+
+        self.greenhouses[self.current_greenhouse_id]['soil'] = soil_data
+
     def draw_soil(self):
         for soil in self.soil_sprites:
             offset_rect = soil.rect.copy()
             offset_rect.topleft -= self.all_sprites.offset
             self.screen.blit(soil.image, offset_rect)
+    
+    def advance_crop_growth(self):
+        greenhouse = self.greenhouses[self.current_greenhouse_id]
+        soil_data = greenhouse['soil']
+
+        for data in soil_data.values():
+            plant = data['plant']
+
+            if plant:
+                plant.grow_to_final()
 
     def handle_input(self, events):
         for event in events:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.state_machine.change_state("level")
+                    self.save_soil_state()
+                    self.state_machine.change_state(
+                        "level", return_pos=self.return_pos
+                    )
 
     def run(self, dt):
         self.screen.fill("black")

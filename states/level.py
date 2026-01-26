@@ -62,6 +62,11 @@ class LevelState:
 
         self.all_sprites.add(self.game.player) # Add player to sprite group
         self.dynamic_sprites.add(self.game.player) # Add player to dynamic sprites
+    
+    def on_enter(self, return_pos=None, **kwargs):
+        if return_pos:
+            self.game.player.rect.center = return_pos
+            self.game.player.hitbox.center = return_pos
 
     # --- Player-Level input ---
     def handle_input(self, events):
@@ -82,7 +87,8 @@ class LevelState:
                             # Enter the specific greenhouse
                             self.state_machine.change_state(
                                 "greenhouse",
-                                greenhouse_id=self.current_greenhouse.greenhouse_id
+                                greenhouse_id=self.current_greenhouse.greenhouse_id,
+                                return_pos=self.game.player.rect.center
                             )
                         return
 
@@ -154,7 +160,7 @@ class LevelState:
                         )
                         self.interaction_zones.add(zone)
 
-    # --- Player sleep sequence with fade effect ---
+    # --- Player sleep ---
     def start_sleep(self):
         if self.sleep_state != self.sleep_state_machine.AWAKE:
             return
@@ -167,6 +173,10 @@ class LevelState:
         self.sleep_state = self.sleep_state_machine.ASLEEP
         self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
+
+        # Advance crop growth in all greenhouses
+        if self.game.state_machine.current_state == "greenhouse":
+            self.game.state_machine.current_state.advance_crop_growth()
 
         # Jump to morning
         self.game.clock_system.set_time(6, 0)
