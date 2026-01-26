@@ -25,7 +25,7 @@ class GreenhouseState:
         self.collision_sprites = pygame.sprite.Group()
         self.interaction_zones = pygame.sprite.Group()
         self.soil_sprites = pygame.sprite.Group()
-        self.soil_layer = SoilLayer(self.soil_sprites)
+        self.soil_layer = SoilLayer(self.soil_sprites, self.game.player)
 
         self.all_sprites = CameraGroup(
             self.game.player,

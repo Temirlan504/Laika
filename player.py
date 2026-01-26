@@ -17,6 +17,7 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=pos) # Postion player's sprite
         self.hitbox = self.rect.inflate((-25, -20))  # Adjust hitbox size
         self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
+        self.inventory = {}
 
         # Movement attributes
         self.direction = pygame.math.Vector2(0, 0)
@@ -25,13 +26,20 @@ class Player(pygame.sprite.Sprite):
 
         # Timers
         self.timers = {
-            'tool_use': Timer(300, self.use_tool)
+            'tool_use': Timer(300, self.use_tool),
+            'harvest': Timer(200)
         }
 
         # Tools attributes
         self.tools = ['hoe', 'pickaxe', 'watering_can', 'seed']
         self.selected_tool = 'pickaxe'
         self.tool_ray_length = 18  # pixels
+
+    def add_item(self, item_name, amount=1):
+        if item_name not in self.inventory:
+            self.inventory[item_name] = 0
+        self.inventory[item_name] += amount
+        print(f"Added {amount}x {item_name} (Total: {self.inventory[item_name]})")
 
     def consume_events(self):
         events = self.events.copy()
@@ -133,6 +141,12 @@ class Player(pygame.sprite.Sprite):
                 self.selected_tool = 'watering_can'
             if keys[pygame.K_4]:
                 self.selected_tool = 'seed'
+
+            # Harvest (interaction key)
+            if keys[pygame.K_e] and not self.timers['harvest'].active:
+                self.timers['harvest'].activate()
+                target_pos = self.get_target_pos()
+                self.events.append(('harvest', target_pos))
 
     # --- Block and unblock player input ---
     def block_input(self):
