@@ -176,8 +176,8 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = self.sleep_state_machine.ASLEEP
-        self.game.day_cycle.reset_cycle()
-        self.game.day_cycle.try_advance_day("sleep")
+        if not self.game.day_cycle.day_advanced:
+            self.game.day_cycle.try_advance_day("sleep")
 
         # 🌱 Advance crops in ALL greenhouses
         for greenhouse in self.game.greenhouse_data.values():
