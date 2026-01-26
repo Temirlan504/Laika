@@ -77,6 +77,8 @@ class GreenhouseState:
         for event_type, pos in events:
             self.soil_layer.handle_event(event_type, pos)
 
+        self.soil_sprites.update()
+
         # Draw soil below player
         self.draw_soil()
 

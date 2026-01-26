@@ -1,6 +1,7 @@
 import pygame
 from utils.settings import LAYERS
 from greenhouse.plant import Plant
+from utils.timer import Timer
 
 class SoilTile(pygame.sprite.Sprite):
     def __init__(self, rect, groups, z_index=LAYERS['ground']):
@@ -10,7 +11,10 @@ class SoilTile(pygame.sprite.Sprite):
         self.z_index = z_index
 
         self.state = "dry"
-        self.plant = None  # Placeholder for a Plant object
+        self.plant = None
+
+        # Timer for plant growth (in milliseconds)
+        self.growth_timer = Timer(1500000000, self.advance_plant)
 
     def hoe(self):
         if self.state == "dry" :
@@ -29,6 +33,16 @@ class SoilTile(pygame.sprite.Sprite):
             print("PLANTED SEED")
             self.plant = Plant("test_crop")
             self.update_visual()
+            self.growth_timer.activate()
+
+    def advance_plant(self):
+        if self.plant and self.state == "watered":
+            self.plant.grow()
+            self.update_visual()
+
+            # continue growing until fully grown
+            if not self.plant.is_fully_grown:
+                self.growth_timer.activate()
 
     def update_visual(self):
         self.image.fill((0, 0, 0, 0))  # clear
@@ -41,12 +55,19 @@ class SoilTile(pygame.sprite.Sprite):
 
         # 🌱 planted seed placeholder
         if self.plant:
-            cx, cy = self.image.get_rect().center
-            pygame.draw.rect(
-                self.image,
-                (0, 255, 0),
-                pygame.Rect(cx - 1, cy - 1, 3, 3)
-            )
+            center = self.image.get_rect().center
+
+            if self.plant.growth_stage == 0:
+                self.image.set_at(center, (0, 255, 0))  # seed
+            elif self.plant.growth_stage == 1:
+                pygame.draw.circle(self.image, (0, 200, 0), center, 2)
+            elif self.plant.growth_stage == 2:
+                pygame.draw.circle(self.image, (0, 180, 0), center, 4)
+            elif self.plant.growth_stage == 3:
+                pygame.draw.circle(self.image, (0, 150, 0), center, 6)
+
+    def update(self):
+        self.growth_timer.update()
 
 class SoilLayer:
     def __init__(self, soil_sprites):
