@@ -135,14 +135,19 @@ class LevelState:
                                     dome.kill()
                                     print("Dome deleted!")
                                     break
+                # Build mode: place dome
                 elif self.build_mode:
-                    # Build mode: place dome
                     if self.preview.valid:
                         dome = GreenhouseDome(
                             center_pos=self.preview.rect.center,
                             image=self.preview.base_image,
                             groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
                         )
+                        greenhouse_id = dome.greenhouse_id
+                        if greenhouse_id not in self.game.greenhouse_data:
+                            self.game.greenhouse_data[greenhouse_id] = {
+                                "soil": {}
+                            }
 
                         # ---- Create door interaction zone ----
                         door_world_pos = (
@@ -174,9 +179,12 @@ class LevelState:
         self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
 
-        # Advance crop growth in all greenhouses
-        if self.game.state_machine.current_state == "greenhouse":
-            self.game.state_machine.current_state.advance_crop_growth()
+        # 🌱 Advance crops in ALL greenhouses
+        for greenhouse in self.game.greenhouse_data.values():
+            for data in greenhouse['soil'].values():
+                plant = data['plant']
+                if plant:
+                    plant.grow_to_final()
 
         # Jump to morning
         self.game.clock_system.set_time(6, 0)

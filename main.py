@@ -21,6 +21,9 @@ class Game:
         self.all_sprites = pygame.sprite.Group()
         self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), self.all_sprites)
 
+        # --- Create GLOBAL variables ---
+        self.greenhouse_data = {}
+
         # --- Create Day Cycle System ---
         from systems.day_cycle import DayCycle
         self.day_cycle = DayCycle()

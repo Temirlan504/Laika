@@ -11,17 +11,12 @@ class GreenhouseState:
         self.screen = game.screen
 
         self.current_greenhouse_id = None
-        self.greenhouses = {}
 
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
         self.return_pos = return_pos
 
-        if greenhouse_id not in self.greenhouses:
-            self.greenhouses[greenhouse_id] = {
-                'soil': {},
-                'name': f'Greenhouse {greenhouse_id}'
-            }
+        self.greenhouse_data = self.game.greenhouse_data[greenhouse_id]
 
         # --- Load greenhouse map ---
         self.map_loader = MapLoader("data/tmx/greenhouse.tmx")
@@ -46,7 +41,7 @@ class GreenhouseState:
             self.soil_sprites
         )
 
-        soil_data = self.greenhouses[greenhouse_id]['soil']
+        soil_data = self.greenhouse_data['soil']
 
         for soil in self.soil_sprites:
             key = soil.tile_pos
@@ -75,23 +70,13 @@ class GreenhouseState:
                 'plant': soil.plant
             }
 
-        self.greenhouses[self.current_greenhouse_id]['soil'] = soil_data
+        self.greenhouse_data['soil'] = soil_data
 
     def draw_soil(self):
         for soil in self.soil_sprites:
             offset_rect = soil.rect.copy()
             offset_rect.topleft -= self.all_sprites.offset
             self.screen.blit(soil.image, offset_rect)
-    
-    def advance_crop_growth(self):
-        greenhouse = self.greenhouses[self.current_greenhouse_id]
-        soil_data = greenhouse['soil']
-
-        for data in soil_data.values():
-            plant = data['plant']
-
-            if plant:
-                plant.grow_to_final()
 
     def handle_input(self, events):
         for event in events:

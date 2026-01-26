@@ -28,12 +28,7 @@ class ClockSystem:
         return f"{self.hour:02d}:{self.minute:02d}"
 
     def can_sleep(self):
-        # Normal night sleep
-        if self.hour >= 20 or self.hour < 4:
-            return True
-
-        # Allow sleep if the day has already advanced
-        return self.day_cycle.day_advanced
+        return self.hour >= 20 or self.hour < 4
 
     def set_time(self, hour, minute=0):
         self.minutes = hour * 60 + minute
