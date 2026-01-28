@@ -17,7 +17,16 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=pos) # Postion player's sprite
         self.hitbox = self.rect.inflate((-25, -20))  # Adjust hitbox size
         self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
+
         self.inventory = {}
+
+        self.max_health = 100
+        self.current_health = self.max_health
+        self.max_hunger = 100
+        self.current_hunger = self.max_hunger
+        self.max_oxygen = 100
+        self.current_oxygen = self.max_oxygen
+        self.is_alive = True
 
         # Movement attributes
         self.direction = pygame.math.Vector2(0, 0)
@@ -33,7 +42,15 @@ class Player(pygame.sprite.Sprite):
         # Tools attributes
         self.tools = ['hoe', 'pickaxe', 'watering_can', 'seed']
         self.selected_tool = 'pickaxe'
-        self.tool_ray_length = 18  # pixels
+        self.tool_ray_length = 32  # pixels
+
+    def take_damage(self, amount):
+        self.health = max(0, self.health - amount)
+        if self.health == 0:
+            self.is_alive = False
+
+    def heal(self, amount):
+        self.health = min(self.max_health, self.health + amount)
 
     def add_item(self, item_name, amount=1):
         if item_name not in self.inventory:
@@ -51,12 +68,12 @@ class Player(pygame.sprite.Sprite):
 
         if self.selected_tool == 'hoe':
             self.events.append(('hoe', target_pos))
-
-        if self.selected_tool == 'watering_can':
+        elif self.selected_tool == 'watering_can':
             self.events.append(('water', target_pos))
-
-        if self.selected_tool == 'seed':
+        elif self.selected_tool == 'seed':
             self.events.append(('plant', target_pos))
+        elif self.selected_tool == 'pickaxe':
+            self.events.append(('pickaxe', target_pos))
 
     # --- Tool use action ---
     def get_target_pos(self):

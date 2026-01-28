@@ -18,7 +18,10 @@ class MapLoader:
     def has_layer(self, name):
         return name in self.tmx_data.layernames
 
-    def setup(self, sprite_group, collision_sprites, interaction_sprites, soil_sprites=None):
+    def setup(
+        self, sprite_group, collision_sprites, interaction_sprites,
+        soil_sprites=None, ground_positions=None
+    ):
         tmx_data = self.tmx_data
         SCALE = TILE_SIZE / tmx_data.tilewidth
 
@@ -30,12 +33,17 @@ class MapLoader:
         if self.has_layer('ground'):
             for x, y, tile_surface in tmx_data.get_layer_by_name('ground').tiles():
                 tile_surface = pygame.transform.scale(tile_surface, (TILE_SIZE, TILE_SIZE))
+                pos = (x * TILE_SIZE, y * TILE_SIZE)
                 GenericSprite(
-                    pos=(x * TILE_SIZE, y * TILE_SIZE),
+                    pos=pos,
                     surface=tile_surface,
                     groups=sprite_group,
                     z_index=LAYERS['ground']
                 )
+
+                # 🌍 collect ground positions
+                if ground_positions is not None:
+                    ground_positions.append(pos)
 
         # ---- Cliffs ----
         if self.has_layer('cliffs'):

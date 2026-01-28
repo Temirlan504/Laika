@@ -1,5 +1,6 @@
+import random
 import pygame
-from sprites import GreenhouseDome
+from sprites import GreenhouseDome, Meteorite
 from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
@@ -7,6 +8,7 @@ from camera import CameraGroup
 from building.preview import DomePreview
 from systems.time_system_fsm import SleepState
 from building.door import DoorInteractionZone
+from utils.timer import Timer
 
 class LevelState:
     def __init__(self, state_machine, game):
@@ -23,7 +25,14 @@ class LevelState:
         self.delete_mode = False  # Toggle for delete domes mode
         self.dome_sprites = pygame.sprite.Group()  # Track all placed domes
 
+        self.ground_positions = []  # Store ground tile positions
+        self.meteorites = pygame.sprite.Group()  # Group for meteorite sprites
+        self.max_meteorites = 100 # Maximum number of meteorites on the map
+        self.meteor_spawn_timer = Timer(100)  # Spawn meteorite timer
+        self.meteor_spawn_timer.activate()
+
         self.debug_mode = False # Toggle debug mode for collision rectangles
+        self.debug_timer = 0   # Timer for debug info printing
         
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
@@ -49,7 +58,10 @@ class LevelState:
     # --- Setting up the level with player and other sprites ---
     def setup_level(self):
         # Load map tiles
-        self.game_map.setup(self.all_sprites, self.collision_sprites, self.interaction_zones)
+        self.game_map.setup(
+            self.all_sprites, self.collision_sprites,
+            self.interaction_zones, ground_positions=self.ground_positions
+        )
 
         # Spawn player
         if self.game_map.player_spawnpoint:
@@ -243,6 +255,7 @@ class LevelState:
                 offset_rect.y -= self.all_sprites.player.rect.centery - self.screen.get_height() // 2
                 pygame.draw.rect(self.screen, (0, 0, 255), offset_rect, 2)
 
+    # --- Dome placement and deletion ---
     def mouse_to_world(self):
         mouse_screen_pos = pygame.mouse.get_pos()
         mouse_world_pos = pygame.Vector2(
@@ -290,17 +303,71 @@ class LevelState:
                         (mouse_screen_pos[0] + 7, mouse_screen_pos[1] - 7),
                         (mouse_screen_pos[0] - 7, mouse_screen_pos[1] + 7), 2)
 
+    # --- Meteorite spawning ---
+    def try_spawn_meteor(self):
+        if len(self.meteorites) >= self.max_meteorites:
+            print("Max meteorites reached, not spawning more.")
+            return
+
+        if not self.ground_positions:
+            print("No ground positions available for meteorite spawning.")
+            return
+
+        pos = random.choice(self.ground_positions)
+        print(f"Spawning meteorite at {pos}")
+
+        # Optional: avoid spawning on player
+        if self.game.player.hitbox.collidepoint(
+            pos[0] + TILE_SIZE // 2,
+            pos[1] + TILE_SIZE // 2
+        ):
+            return
+
+        Meteorite(
+            pos=pos,
+            groups=[
+                self.all_sprites,
+                self.meteorites,
+                self.collision_sprites
+            ]
+        )
+
+    def handle_tool_events(self):
+        events = self.game.player.consume_events()
+        for event_type, pos in events:
+            if event_type == 'pickaxe':
+                # Check all meteorites
+                for meteor in self.meteorites:
+                    # Calculate distance from tool to meteorite center
+                    dx = meteor.rect.centerx - pos[0]
+                    dy = meteor.rect.centery - pos[1]
+                    distance = (dx*dx + dy*dy) ** 0.5
+                    
+                    # If within meteorite radius (with some tolerance)
+                    if distance <= TILE_SIZE * 0.7:  # 70% of tile size for forgiveness
+                        meteor.mine(self.game.player)
+                        print(f"Mined meteorite! HP remaining: {meteor.hp}")
+                        break
+
     def run(self, dt):
         self.screen.fill('black')
 
-        # --- Update ---
         self.fade_effect.update(dt)
         self.night_overlay.update()
 
-        if self.sleep_state == self.sleep_state_machine.AWAKE:
-            self.check_collisions(dt)
+        self.meteor_spawn_timer.update()
 
-        # Only show preview in build mode
+        if self.meteor_spawn_timer.deactivate:
+            if len(self.meteorites) < self.max_meteorites:
+                self.try_spawn_meteor()
+            self.meteor_spawn_timer.activate()  # reset timer
+
+        if self.sleep_state == self.sleep_state_machine.AWAKE:
+            self.check_collisions(dt)   # player.update happens here
+
+        self.handle_tool_events()
+
+        # --- Build preview ---
         if self.build_mode:
             self.preview.set_position(self.mouse_to_world())
             valid = self.can_place_dome(
@@ -309,15 +376,23 @@ class LevelState:
             )
             self.preview.set_valid(valid)
 
-        # --- Draw ---
         self.all_sprites.custom_draw()
-        
+
         if self.build_mode:
             self.preview.draw(self.screen, self.all_sprites.offset)
         elif self.delete_mode:
-            # Show delete cursor/indicator
             self.draw_delete_cursor()
-        
+
         self.draw_debug()
         self.night_overlay.draw()
         self.fade_effect.draw()
+
+        # --- DEBUG INFO ---
+        self.debug_timer += dt
+        if self.debug_timer >= 1.0:
+            print(
+                f"[DEBUG] HP={self.game.player.current_health:.0f} | "
+                f"O2={self.game.player.current_oxygen:.0f} | "
+                f"Hunger={self.game.player.current_hunger:.0f}"
+            )
+            self.debug_timer = 0

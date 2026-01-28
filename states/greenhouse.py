@@ -87,6 +87,12 @@ class GreenhouseState:
                         "level", return_pos=self.return_pos
                     )
 
+    def refill_oxygen(self, dt):
+        self.game.player.oxygen = min(
+            self.game.player.max_oxygen,
+            self.game.player.current_oxygen + 40 * dt
+        )
+
     def run(self, dt):
         self.screen.fill("black")
 
@@ -97,6 +103,9 @@ class GreenhouseState:
         events = self.game.player.consume_events()
         for event_type, pos in events:
             self.soil_layer.handle_event(event_type, pos)
+
+        # Refill oxygen
+        self.refill_oxygen(dt)
 
         self.soil_sprites.update()
 

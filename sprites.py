@@ -43,3 +43,25 @@ class GreenhouseDome(pygame.sprite.Sprite):
         self.greenhouse_id = GreenhouseDome._next_id
         GreenhouseDome._next_id += 1
         print(f"Created GreenhouseDome with ID: {self.greenhouse_id}")
+
+class Meteorite(pygame.sprite.Sprite):
+    def __init__(self, pos, groups):
+        super().__init__(groups)
+
+        self.image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, (140, 140, 160), (TILE_SIZE//2, TILE_SIZE//2), TILE_SIZE//2)
+
+        self.rect = self.image.get_rect(topleft=pos)
+        self.mask = pygame.mask.from_surface(self.image)
+        self.z_index = 2
+
+        self.hp = 3  # hits to break
+
+    def mine(self, player):
+        self.hp -= 1
+        if self.hp <= 0:
+            self.drop_loot(player)
+            self.kill()
+
+    def drop_loot(self, player):
+        player.add_item("meteor_ore", 1)
