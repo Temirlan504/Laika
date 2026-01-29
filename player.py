@@ -45,12 +45,15 @@ class Player(pygame.sprite.Sprite):
         self.tool_ray_length = 32  # pixels
 
     def take_damage(self, amount):
-        self.health = max(0, self.health - amount)
-        if self.health == 0:
+        self.current_health = max(0, self.current_health - amount)
+        if self.current_health == 0:
             self.is_alive = False
 
     def heal(self, amount):
-        self.health = min(self.max_health, self.health + amount)
+        self.current_health = min(self.max_health, self.current_health + amount)
+
+    def refill_oxygen(self, amount):
+        self.current_oxygen = min(self.max_oxygen, self.current_oxygen + amount)
 
     def add_item(self, item_name, amount=1):
         if item_name not in self.inventory:

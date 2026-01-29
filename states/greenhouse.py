@@ -88,10 +88,7 @@ class GreenhouseState:
                     )
 
     def refill_oxygen(self, dt):
-        self.game.player.oxygen = min(
-            self.game.player.max_oxygen,
-            self.game.player.current_oxygen + 40 * dt
-        )
+        self.game.player.refill_oxygen(40 * dt)
 
     def run(self, dt):
         self.screen.fill("black")

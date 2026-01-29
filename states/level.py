@@ -7,6 +7,7 @@ from utils.map_loader import MapLoader
 from camera import CameraGroup
 from building.preview import DomePreview
 from systems.time_system_fsm import SleepState
+from systems.oxygen_system import OxygenSystem
 from building.door import DoorInteractionZone
 from utils.timer import Timer
 
@@ -52,6 +53,9 @@ class LevelState:
         dome_image = pygame.image.load("assets/dome.png").convert_alpha()
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         self.preview = DomePreview(dome_image)
+
+        # Oxygen system
+        self.oxygen_system = OxygenSystem()
 
         self.setup_level()
 
@@ -364,6 +368,7 @@ class LevelState:
 
         if self.sleep_state == self.sleep_state_machine.AWAKE:
             self.check_collisions(dt)   # player.update happens here
+            self.oxygen_system.update(self.game.player, dt)
 
         self.handle_tool_events()
 
