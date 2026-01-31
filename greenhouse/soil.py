@@ -1,9 +1,9 @@
 import pygame
 import random
-from utils.settings import LAYERS
+from utils.settings import LAYERS, TILE_SIZE
 from greenhouse.plant import Plant
 from utils.timer import Timer
-from utils.settings import TILE_SIZE
+from items import get_item
 
 class SoilTile(pygame.sprite.Sprite):
     def __init__(self, rect, groups, z_index=LAYERS['ground']):
@@ -20,23 +20,43 @@ class SoilTile(pygame.sprite.Sprite):
         self.growth_timer = Timer(1500000000, self.advance_plant)
 
     def hoe(self):
-        if self.state == "dry" :
-            print("HOE")
+        if self.state == "dry":
+            print("Tilled soil")
             self.state = "hoed"
             self.update_visual()
 
     def water(self):
         if self.state == "hoed":
-            print("WATER")
+            print("Watered soil")
             self.state = "watered"
             self.update_visual()
 
-    def plant_seed(self):
-        if self.state == "watered" and self.plant is None:
-            print("PLANTED SEED")
-            self.plant = Plant("test_crop")
+    def plant_seed(self, player, seed_id):
+        """Plant a seed from player's inventory"""
+        if self.state != "watered" or self.plant is not None:
+            return False
+        
+        # Check if player has the seed
+        if not player.has_item(seed_id, 1):
+            print(f"You don't have any {seed_id}")
+            return False
+        
+        # Get seed definition
+        seed_def = get_item(seed_id)
+        if not seed_def or not hasattr(seed_def, 'plant_type'):
+            print(f"Invalid seed: {seed_id}")
+            return False
+        
+        # Remove seed from inventory
+        if player.remove_item(seed_id, 1):
+            # Plant it
+            self.plant = Plant(seed_def.plant_type)
             self.update_visual()
             self.growth_timer.activate()
+            print(f"Planted {seed_def.name}")
+            return True
+        
+        return False
 
     def advance_plant(self):
         if self.plant and self.state == "watered":
@@ -51,15 +71,16 @@ class SoilTile(pygame.sprite.Sprite):
         return self.plant is not None and self.plant.is_fully_grown
     
     def harvest(self, player):
+        """Harvest the crop and add to player inventory"""
         if not self.is_harvestable():
             return
 
         crop_name = self.plant.plant_type
 
-        # Always give 1 seed back
+        # Give back 1 seed (sustainable farming!)
         player.add_item(f"{crop_name}_seed", 1)
 
-        # Give 1–3 crops
+        # Give 1-3 crops
         crop_amount = random.randint(1, 3)
         player.add_item(crop_name, crop_amount)
 
@@ -69,7 +90,7 @@ class SoilTile(pygame.sprite.Sprite):
         self.growth_timer.deactivate()
         self.update_visual()
 
-        print(f"Harvested {crop_amount}x {crop_name}")
+        print(f"Harvested {crop_amount}x {crop_name} + 1 seed")
 
     def update_visual(self):
         self.image.fill((0, 0, 0, 0))  # clear
@@ -80,7 +101,7 @@ class SoilTile(pygame.sprite.Sprite):
         elif self.state == "watered":
             pygame.draw.rect(self.image, (60, 80, 120), self.image.get_rect())
 
-        # 🌱 planted seed placeholder
+        # Plant visual
         if self.plant:
             center = self.image.get_rect().center
 
@@ -96,6 +117,7 @@ class SoilTile(pygame.sprite.Sprite):
     def update(self):
         self.growth_timer.update()
 
+
 class SoilLayer:
     def __init__(self, soil_sprites, player):
         self.soil_sprites = soil_sprites
@@ -107,17 +129,23 @@ class SoilLayer:
                 return soil
         return None
 
-    def handle_event(self, event_type, pos):
+    def handle_event(self, event_type, pos, seed_id=None):
+        """Handle farming events from player"""
         soil = self.get_tile_at_pos(pos)
         if soil is None:
             return
 
         if event_type == 'hoe':
             soil.hoe()
+        
         elif event_type == 'water':
             soil.water()
+        
         elif event_type == 'plant':
-            soil.plant_seed()
+            # Use the seed_id passed from player
+            if seed_id:
+                soil.plant_seed(self.player, seed_id)
+        
         elif event_type == 'harvest':
             if soil.is_harvestable():
                 soil.harvest(self.player)

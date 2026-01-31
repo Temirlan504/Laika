@@ -2,6 +2,7 @@ import pygame
 from utils.settings import *
 from utils.support import import_folder
 from utils.timer import Timer
+from systems.inventory_system import Inventory
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, group):
@@ -14,11 +15,13 @@ class Player(pygame.sprite.Sprite):
         # Player placeholder
         self.image = self.animations[self.status][self.frame_index]
         self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
-        self.rect = self.image.get_rect(center=pos) # Postion player's sprite
-        self.hitbox = self.rect.inflate((-25, -20))  # Adjust hitbox size
-        self.z_index = LAYERS['player']  # Ensure player is above ground and cliffs
+        self.rect = self.image.get_rect(center=pos)
+        self.hitbox = self.rect.inflate((-25, -20))
+        self.z_index = LAYERS['player']
 
-        self.inventory = {}
+        # Initialize inventory system
+        self.inventory = Inventory(size=30)
+        self._give_starter_items()  # Give starter items on creation
 
         self.max_health = 100
         self.current_health = self.max_health
@@ -42,7 +45,17 @@ class Player(pygame.sprite.Sprite):
         # Tools attributes
         self.tools = ['hoe', 'pickaxe', 'watering_can', 'seed']
         self.selected_tool = 'pickaxe'
-        self.tool_ray_length = 32  # pixels
+        self.selected_seed = 'potato_seed'  # Track which seed to plant
+        self.tool_ray_length = 32
+
+    def _give_starter_items(self):
+        """Give player starting items - called once on initialization"""
+        self.inventory.add_item("pickaxe", 1)
+        self.inventory.add_item("hoe", 1)
+        self.inventory.add_item("watering_can", 1)
+        self.inventory.add_item("potato_seed", 10)
+        self.inventory.add_item("tomato_seed", 5)
+        self.inventory.add_item("carrot_seed", 3)
 
     def take_damage(self, amount):
         self.current_health = max(0, self.current_health - amount)
@@ -54,12 +67,55 @@ class Player(pygame.sprite.Sprite):
 
     def refill_oxygen(self, amount):
         self.current_oxygen = min(self.max_oxygen, self.current_oxygen + amount)
+    
+    def restore_hunger(self, amount):
+        """Restore hunger (for eating food)"""
+        self.current_hunger = min(self.max_hunger, self.current_hunger + amount)
 
-    def add_item(self, item_name, amount=1):
-        if item_name not in self.inventory:
-            self.inventory[item_name] = 0
-        self.inventory[item_name] += amount
-        print(f"Added {amount}x {item_name} (Total: {self.inventory[item_name]})")
+    def add_item(self, item_id, amount=1):
+        """Add item to inventory"""
+        return self.inventory.add_item(item_id, amount)
+    
+    def remove_item(self, item_id, amount=1):
+        """Remove item from inventory"""
+        return self.inventory.remove_item(item_id, amount)
+    
+    def has_item(self, item_id, amount=1):
+        """Check if player has item in inventory"""
+        return self.inventory.has_item(item_id, amount)
+    
+    def use_item(self, item_id):
+        """Use/consume an item from inventory"""
+        from items import get_item, ItemType
+        
+        item_def = get_item(item_id)
+        if not item_def:
+            return False
+        
+        # Handle food items
+        if item_def.type == ItemType.FOOD:
+            if self.remove_item(item_id, 1):
+                if hasattr(item_def, 'hunger_restore'):
+                    self.restore_hunger(item_def.hunger_restore)
+                if hasattr(item_def, 'health_restore'):
+                    self.heal(item_def.health_restore)
+                print(f"Consumed {item_def.name}")
+                return True
+        
+        # Handle seed items - set as selected seed
+        if item_def.type == ItemType.SEED:
+            self.selected_tool = 'seed'
+            self.selected_seed = item_id
+            print(f"Selected {item_def.name} for planting")
+            return True
+        
+        # Handle tool items
+        if item_def.type == ItemType.TOOL:
+            self.selected_tool = item_id
+            print(f"Equipped {item_def.name}")
+            return True
+        
+        return False
 
     def consume_events(self):
         events = self.events.copy()
@@ -74,11 +130,10 @@ class Player(pygame.sprite.Sprite):
         elif self.selected_tool == 'watering_can':
             self.events.append(('water', target_pos))
         elif self.selected_tool == 'seed':
-            self.events.append(('plant', target_pos))
+            self.events.append(('plant', target_pos, self.selected_seed))
         elif self.selected_tool == 'pickaxe':
             self.events.append(('pickaxe', target_pos))
 
-    # --- Tool use action ---
     def get_target_pos(self):
         """Return a position slightly in front of the player (tool ray)"""
         direction = pygame.math.Vector2(0, 0)
@@ -92,13 +147,11 @@ class Player(pygame.sprite.Sprite):
         elif 'right' in self.status:
             direction.x = 1
 
-        # Default to under player if idle
         if direction.length() == 0:
             return self.hitbox.center
 
         return self.hitbox.center + direction * self.tool_ray_length
 
-    # --- Importing assets into a dictionary and animating player ---
     def import_assets(self):
         self.animations = {
             'up_idle': [], 'down_idle': [], 'left_idle': [], 'right_idle': [],
@@ -120,7 +173,6 @@ class Player(pygame.sprite.Sprite):
             self.frame_index = 0
         self.image = self.animations[self.status][int(self.frame_index)]
 
-    # --- Player's direction vectors and movement ---
     def handle_input(self):
         if self.input_blocked:
             return
@@ -146,13 +198,11 @@ class Player(pygame.sprite.Sprite):
 
             # Tool use
             if keys[pygame.K_SPACE]:
-                # Timer for tool use
                 self.timers['tool_use'].activate()
                 self.frame_index = 0
-                # Stop movement when using tool
                 self.direction = pygame.math.Vector2(0, 0)
             
-            # Select tool (example with number keys)
+            # Select tool (number keys)
             if keys[pygame.K_1]:
                 self.selected_tool = 'hoe'
             if keys[pygame.K_2]:
@@ -168,7 +218,6 @@ class Player(pygame.sprite.Sprite):
                 target_pos = self.get_target_pos()
                 self.events.append(('harvest', target_pos))
 
-    # --- Block and unblock player input ---
     def block_input(self):
         self.input_blocked = True
         self.direction = pygame.math.Vector2(0, 0)
@@ -176,7 +225,6 @@ class Player(pygame.sprite.Sprite):
     def unblock_input(self):
         self.input_blocked = False
 
-    # --- Helper function to check mask collision ---
     def check_mask_collision(self, sprite):
         """Check if player's hitbox collides with sprite's mask"""
         if not hasattr(sprite, 'mask') or not sprite.mask:
@@ -190,7 +238,6 @@ class Player(pygame.sprite.Sprite):
         
         return player_mask.overlap(sprite.mask, (offset_x, offset_y)) is not None
 
-    # --- Move player and handle collisions ---
     def move_player(self, dt, collision_sprites):
         if self.direction.magnitude() > 0:
             self.direction = self.direction.normalize()
@@ -201,11 +248,9 @@ class Player(pygame.sprite.Sprite):
         
         for sprite in collision_sprites:
             if hasattr(sprite, 'mask') and sprite.mask:
-                # Mask-based collision
                 if self.hitbox.colliderect(sprite.rect) and self.check_mask_collision(sprite):
-                    # Binary search to find exact collision point
                     low, high = 0.0, 1.0
-                    for _ in range(8):  # 8 iterations for precision
+                    for _ in range(8):
                         mid = (low + high) / 2
                         self.hitbox.x = original_x + self.direction.x * self.speed * dt * mid
                         
@@ -214,15 +259,13 @@ class Player(pygame.sprite.Sprite):
                         else:
                             low = mid
                     
-                    # Place player just before collision
                     self.hitbox.x = original_x + self.direction.x * self.speed * dt * low
                     break
             else:
-                # Rectangle collision for objects without masks
                 if self.hitbox.colliderect(sprite.rect):
-                    if self.direction.x > 0:  # Moving right
+                    if self.direction.x > 0:
                         self.hitbox.right = sprite.rect.left
-                    if self.direction.x < 0:  # Moving left
+                    if self.direction.x < 0:
                         self.hitbox.left = sprite.rect.right
 
         # Vertical movement and collision detection
@@ -231,11 +274,9 @@ class Player(pygame.sprite.Sprite):
         
         for sprite in collision_sprites:
             if hasattr(sprite, 'mask') and sprite.mask:
-                # Mask-based collision
                 if self.hitbox.colliderect(sprite.rect) and self.check_mask_collision(sprite):
-                    # Binary search to find exact collision point
                     low, high = 0.0, 1.0
-                    for _ in range(8):  # 8 iterations for precision
+                    for _ in range(8):
                         mid = (low + high) / 2
                         self.hitbox.y = original_y + self.direction.y * self.speed * dt * mid
                         
@@ -244,33 +285,28 @@ class Player(pygame.sprite.Sprite):
                         else:
                             low = mid
                     
-                    # Place player just before collision
                     self.hitbox.y = original_y + self.direction.y * self.speed * dt * low
                     break
             else:
-                # Rectangle collision for objects without masks
                 if self.hitbox.colliderect(sprite.rect):
-                    if self.direction.y > 0:  # Moving down
+                    if self.direction.y > 0:
                         self.hitbox.bottom = sprite.rect.top
-                    if self.direction.y < 0:  # Moving up
+                    if self.direction.y < 0:
                         self.hitbox.top = sprite.rect.bottom
 
         self.rect.center = self.hitbox.center
 
-    # --- Player status management (idle, walking, mining, etc.) ---
     def get_status(self):
-        # Set idle status if no movement
         if self.direction.magnitude() == 0:
             self.status = self.status.split('_')[0] + '_idle'
 
         if self.timers['tool_use'].active:
-            self.status = self.status.split('_')[0] + '_' + self.selected_tool  # Example: using hoe tool
+            self.status = self.status.split('_')[0] + '_' + self.selected_tool
     
     def update_timers(self):
         for timer in self.timers.values():
             timer.update()
 
-    # --- Update player states ---
     def update(self, dt, collision_sprites):
         self.handle_input()
         self.get_status()

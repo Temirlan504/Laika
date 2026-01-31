@@ -8,6 +8,7 @@ from states.state_machine import StateMachine
 from ui.ui_manager import UIManager
 from ui.hud import DayUI
 from ui.interaction_ui import InteractionPrompt
+from ui.inventory_ui import InventoryUI
 from player import Player
 
 class Game:
@@ -38,9 +39,11 @@ class Game:
 
         self.day_ui = DayUI(self.day_cycle, self.clock_system, self.screen)
         self.interaction_prompt = InteractionPrompt(self.screen)
+        self.inventory_ui = InventoryUI(self.screen, self.player.inventory)
 
         self.ui_manager.add(self.day_ui)
         self.ui_manager.add(self.interaction_prompt)
+        self.ui_manager.add(self.inventory_ui)
 
         # --- State Machine Setup ---
         self.state_machine = StateMachine(self)

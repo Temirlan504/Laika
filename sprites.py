@@ -1,3 +1,4 @@
+import random
 import pygame
 from utils.settings import *
 
@@ -53,15 +54,19 @@ class Meteorite(pygame.sprite.Sprite):
 
         self.rect = self.image.get_rect(topleft=pos)
         self.mask = pygame.mask.from_surface(self.image)
-        self.z_index = 2
+        self.z_index = LAYERS.get('main', 2)
 
         self.hp = 3  # hits to break
 
     def mine(self, player):
+        """Player mines this meteorite"""
         self.hp -= 1
+        
         if self.hp <= 0:
-            self.drop_loot(player)
+            # Drop 1-3 iron ore
+            amount = random.randint(1, 3)
+            player.add_item("iron_ore", amount)
+            print(f"Meteorite destroyed! Collected {amount} iron ore")
             self.kill()
-
-    def drop_loot(self, player):
-        player.add_item("meteor_ore", 1)
+        else:
+            print(f"Mining meteorite... {self.hp} HP remaining")
