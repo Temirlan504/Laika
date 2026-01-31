@@ -60,6 +60,10 @@ class LevelState:
         self.setup_level()
 
     def setup_level(self):
+        # Make sure player exists
+        if self.game.player is None:
+            raise RuntimeError("Player must be initialized before entering level state")
+        
         # Load map tiles
         self.game_map.setup(
             self.all_sprites, self.collision_sprites,
@@ -78,6 +82,12 @@ class LevelState:
         self.dynamic_sprites.add(self.game.player)
     
     def on_enter(self, return_pos=None, **kwargs):
+        # Show game UI elements
+        self.game.day_ui.visible = True
+        self.game.interaction_prompt.visible = False  # Start hidden, shown when near interaction
+        if self.game.inventory_ui:
+            self.game.inventory_ui.visible = False  # Start hidden, opened with TAB
+        
         if return_pos:
             self.game.player.rect.center = return_pos
             self.game.player.hitbox.center = return_pos
