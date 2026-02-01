@@ -78,6 +78,15 @@ class Game:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+                
+                # Handle window resize
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode(
+                        event.size, pygame.RESIZABLE
+                    )
+
+                    if hasattr(self.state_machine.current_state, "on_resize"):
+                        self.state_machine.current_state.on_resize(event.size)
 
             # Only update clock system if player exists (in-game) and not in main menu or pause menu
             if (self.player is not None and 

@@ -273,8 +273,8 @@ class PauseMenuState:
         """Handle input events"""
         for event in events:
             if event.type == pygame.KEYDOWN:
-                # ESC or P to resume
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_p:
+                # ESC to resume
+                if event.key == pygame.K_ESCAPE:
                     if self.showing_quit_confirm or self.showing_main_menu_confirm:
                         # Cancel confirmation dialog
                         self.hide_confirmations()
