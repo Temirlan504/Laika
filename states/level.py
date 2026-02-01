@@ -82,11 +82,20 @@ class LevelState:
         self.dynamic_sprites.add(self.game.player)
     
     def on_enter(self, return_pos=None, **kwargs):
+        # Make sure player exists - if not, something went wrong
+        if not self.game.player:
+            print("ERROR: Level entered without player! Returning to main menu.")
+            self.state_machine.change_state("main_menu")
+            return
+        
         # Show game UI elements
         self.game.day_ui.visible = True
         self.game.interaction_prompt.visible = False  # Start hidden, shown when near interaction
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False  # Start hidden, opened with TAB
+        
+        # Unblock player input when entering level
+        self.game.player.unblock_input()
         
         if return_pos:
             self.game.player.rect.center = return_pos
@@ -224,6 +233,10 @@ class LevelState:
         self.game.player.unblock_input()
 
     def check_collisions(self, dt):
+        # Make sure player exists and is in the game
+        if not self.game.player:
+            return
+        
         for sprite in self.dynamic_sprites:
             if sprite == self.game.player:
                 sprite.update(dt, self.collision_sprites)
@@ -360,13 +373,15 @@ class LevelState:
         # Update inventory hover
         self.game.inventory_ui.handle_hover(pygame.mouse.get_pos())
 
-        self.meteor_spawn_timer.update()
-        if self.meteor_spawn_timer.deactivate:
-            if len(self.meteorites) < self.max_meteorites:
-                self.try_spawn_meteor()
-            self.meteor_spawn_timer.activate()
+        # Only update game logic if not sleeping and dt > 0 (not paused)
+        if self.sleep_state == self.sleep_state_machine.AWAKE and dt > 0:
+            # Meteor spawning
+            self.meteor_spawn_timer.update()
+            if self.meteor_spawn_timer.deactivate:
+                if len(self.meteorites) < self.max_meteorites:
+                    self.try_spawn_meteor()
+                self.meteor_spawn_timer.activate()
 
-        if self.sleep_state == self.sleep_state_machine.AWAKE:
             # Block player input when inventory is open
             if self.game.inventory_ui.visible:
                 self.game.player.block_input()
@@ -376,9 +391,13 @@ class LevelState:
             self.check_collisions(dt)
             self.oxygen_system.update(self.game.player, dt)
 
-        self.handle_tool_events()
+            self.handle_tool_events()
+        elif dt == 0:
+            # Game is paused - make absolutely sure player is blocked
+            if self.game.player:
+                self.game.player.block_input()
 
-        # Build preview
+        # Build preview (always show even when paused)
         if self.build_mode:
             self.preview.set_position(self.mouse_to_world())
             valid = self.can_place_dome(
@@ -387,6 +406,7 @@ class LevelState:
             )
             self.preview.set_valid(valid)
 
+        # Always draw the game (even when paused - pause menu will overlay on top)
         self.all_sprites.custom_draw()
 
         if self.build_mode:
@@ -398,12 +418,13 @@ class LevelState:
         self.night_overlay.draw()
         self.fade_effect.draw()
 
-        # Debug info
-        self.debug_timer += dt
-        if self.debug_timer >= 1.0:
-            print(
-                f"[DEBUG] HP={self.game.player.current_health:.0f} | "
-                f"O2={self.game.player.current_oxygen:.0f} | "
-                f"Hunger={self.game.player.current_hunger:.0f}"
-            )
-            self.debug_timer = 0
+        # Debug info (only when dt > 0, not paused)
+        if dt > 0:
+            self.debug_timer += dt
+            if self.debug_timer >= 1.0:
+                print(
+                    f"[DEBUG] HP={self.game.player.current_health:.0f} | "
+                    f"O2={self.game.player.current_oxygen:.0f} | "
+                    f"Hunger={self.game.player.current_hunger:.0f}"
+                )
+                self.debug_timer = 0

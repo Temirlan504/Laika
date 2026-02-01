@@ -30,4 +30,15 @@ class StateMachine:
 
     def run(self, dt):
         if self.current_state:
-            self.current_state.run(dt)
+            # Special case: if paused, render level state first, then pause menu on top
+            if self.current_state == self.state_instances.get("pause_menu"):
+                level_state = self.state_instances.get("level")
+                if level_state:
+                    # Render level (frozen) in background
+                    level_state.run(0)  # dt=0 means no updates, just draw
+                
+                # Run pause menu with dt=0 to freeze everything
+                self.current_state.run(0)
+            else:
+                # Run current state normally
+                self.current_state.run(dt)

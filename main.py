@@ -47,10 +47,11 @@ class Game:
 
         # State Machine Setup
         self.state_machine = StateMachine(self)
-        self.state_machine.add_state("main_menu", MainMenuState)  # NEW
+        self.state_machine.add_state("main_menu", MainMenuState)
         self.state_machine.add_state("level", LevelState)
         self.state_machine.add_state("pause_menu", PauseMenuState)
         self.state_machine.add_state("greenhouse", GreenhouseState)
+
         self.state_machine.change_state("main_menu")  # Start at main menu
 
     def initialize_game(self):
@@ -77,19 +78,11 @@ class Game:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                
-                # Handle resizing
-                if event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode(
-                        event.size, pygame.RESIZABLE
-                    )
 
-                    # Notify current state
-                    if hasattr(self.state_machine.current_state, "on_resize"):
-                        self.state_machine.current_state.on_resize(event.size)
-
-            # Only update clock system if player exists (in-game)
-            if self.player is not None:
+            # Only update clock system if player exists (in-game) and not in main menu or pause menu
+            if (self.player is not None and 
+                self.state_machine.current_state != self.state_machine.state_instances.get("main_menu") and
+                self.state_machine.current_state != self.state_machine.state_instances.get("pause_menu")):
                 self.clock_system.update(dt)
             
             # Current state logic (inventory toggle is now handled in states)
