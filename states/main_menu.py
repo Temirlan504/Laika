@@ -1,7 +1,7 @@
 import pygame
 import sys
 import os
-from utils.button import Button
+from utils.button import Button, clamp
 
 class MainMenuState:
     def __init__(self, state_machine, game):
@@ -39,86 +39,60 @@ class MainMenuState:
             self.button_font = pygame.font.Font(None, 45)
     
     def load_background(self):
-        """Load background image from Canva (contains title and subtitle)"""
         bg_path = "assets/main_menu_bg.png"
-        
+
         if os.path.exists(bg_path):
-            # Load your Canva background
-            self.background = pygame.image.load(bg_path).convert()
+            self.background_original = pygame.image.load(bg_path).convert()
             self.background = pygame.transform.scale(
-                self.background, 
+                self.background_original,
                 (self.screen.get_width(), self.screen.get_height())
             )
-            print("Loaded main menu background from Canva")
         else:
-            # Fallback: solid color if image not found
-            self.background = pygame.Surface(
+            self.background_original = pygame.Surface(
                 (self.screen.get_width(), self.screen.get_height())
             )
-            self.background.fill((40, 40, 40))  # Dark gray fallback
-    
+            self.background_original.fill((40, 40, 40))
+            self.background = self.background_original.copy()
+
     def create_buttons(self):
         """Create menu buttons"""
         screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+
         button_width = 350
         button_height = 70
+
         button_x = (screen_width - button_width) // 2
-        start_y = 320
-        spacing = 90
-        
+        start_y = int(screen_height * 0.45)
+        spacing = clamp(int(screen_height * 0.1), 80, 110)
+
         self.buttons = []
-        
-        # NEW GAME button
-        new_game_btn = Button(
-            x=button_x,
-            y=start_y,
-            width=button_width,
-            height=button_height,
-            text="NEW GAME",
-            font=self.button_font,
-            callback=self.new_game
-        )
+
+        def add_button(text, index, callback):
+            return Button(
+                x=button_x,
+                y=start_y + spacing * index,
+                width=button_width,
+                height=button_height,
+                text=text,
+                font=self.button_font,
+                callback=callback
+            )
+
+        new_game_btn = add_button("NEW GAME", 0, self.new_game)
         self.buttons.append(new_game_btn)
-        
-        # CONTINUE button
-        continue_btn = Button(
-            x=button_x,
-            y=start_y + spacing,
-            width=button_width,
-            height=button_height,
-            text="CONTINUE",
-            font=self.button_font,
-            callback=self.continue_game
-        )
-        # Disable if no save file exists
+
+        continue_btn = add_button("CONTINUE", 1, self.continue_game)
         if not self.has_save_file():
             continue_btn.normal_color = (100, 100, 100)
             continue_btn.hover_color = (100, 100, 100)
             continue_btn.callback = None
         self.buttons.append(continue_btn)
-        
-        # SETTINGS button
-        settings_btn = Button(
-            x=button_x,
-            y=start_y + spacing * 2,
-            width=button_width,
-            height=button_height,
-            text="SETTINGS",
-            font=self.button_font,
-            callback=self.open_settings
-        )
+
+        settings_btn = add_button("SETTINGS", 2, self.open_settings)
         self.buttons.append(settings_btn)
-        
-        # QUIT button
-        quit_btn = Button(
-            x=button_x,
-            y=start_y + spacing * 3,
-            width=button_width,
-            height=button_height,
-            text="QUIT",
-            font=self.button_font,
-            callback=self.quit_game
-        )
+
+        quit_btn = add_button("QUIT", 3, self.quit_game)
         self.buttons.append(quit_btn)
     
     def has_save_file(self):
@@ -173,6 +147,19 @@ class MainMenuState:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     self.new_game()
+    
+    # Handle window resize
+    def on_resize(self, size):
+        width, height = size
+
+        # Rescale background
+        self.background = pygame.transform.scale(
+            self.background_original,
+            (width, height)
+        )
+
+        # Recreate buttons (re-center them)
+        self.create_buttons()
     
     def update(self, dt):
         """Update button hover states"""

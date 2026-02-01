@@ -84,3 +84,6 @@ class Button:
         """Update button position"""
         self.rect.x = x
         self.rect.y = y
+
+def clamp(value, min_v, max_v):
+    return max(min_v, min(value, max_v))

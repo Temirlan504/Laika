@@ -1,7 +1,7 @@
 import pygame
 import sys
 from utils.settings import *
-from states.main_menu import MainMenuState  # NEW
+from states.main_menu import MainMenuState
 from states.level import LevelState
 from states.pause_menu import PauseMenuState
 from states.greenhouse import GreenhouseState
@@ -9,7 +9,7 @@ from states.state_machine import StateMachine
 from ui.ui_manager import UIManager
 from ui.hud import DayUI
 from ui.interaction_ui import InteractionPrompt
-from ui.inventory_ui import InventoryUI  # NEW: Import inventory UI
+from ui.inventory_ui import InventoryUI
 from player import Player
 
 class Game:
@@ -77,6 +77,16 @@ class Game:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+                
+                # Handle resizing
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode(
+                        event.size, pygame.RESIZABLE
+                    )
+
+                    # Notify current state
+                    if hasattr(self.state_machine.current_state, "on_resize"):
+                        self.state_machine.current_state.on_resize(event.size)
 
             # Only update clock system if player exists (in-game)
             if self.player is not None:
