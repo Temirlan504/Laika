@@ -112,7 +112,7 @@ class LevelState:
                         self.state_machine.change_state("pause_menu")
 
                 # Toggle inventory (handled in state instead of main.py)
-                elif event.key == pygame.K_TAB or event.key == pygame.K_i:
+                elif event.key == pygame.K_TAB:
                     self.game.inventory_ui.toggle()
 
                 # Interaction key
@@ -152,57 +152,92 @@ class LevelState:
                         self.build_mode = False
                     print(f"Delete mode: {'ON' if self.delete_mode else 'OFF'}")
             
-            # Mouse click events
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # Handle inventory clicks first
-                self.game.inventory_ui.handle_click(pygame.mouse.get_pos())
+            # Mouse button DOWN events
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
                 
-                # Then handle building/deleting
-                if self.delete_mode:
-                    mouse_world_pos = self.mouse_to_world()
-                    for dome in self.dome_sprites:
-                        if dome.rect.collidepoint(mouse_world_pos):
-                            local_x = int(mouse_world_pos.x - dome.rect.x)
-                            local_y = int(mouse_world_pos.y - dome.rect.y)
-                            
-                            if (0 <= local_x < dome.rect.width and 
-                                0 <= local_y < dome.rect.height):
-                                if dome.mask.get_at((local_x, local_y)):
-                                    for zone in self.interaction_zones:
-                                        if isinstance(zone, DoorInteractionZone) and zone.owner == dome:
-                                            zone.kill()
+                if event.button == 1:  # Left click
+                    # Try inventory drag start first
+                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 1)
+                    
+                    # If not clicking inventory, handle building/deleting
+                    if clicked_slot is None:
+                        if self.delete_mode:
+                            mouse_world_pos = self.mouse_to_world()
+                            for dome in self.dome_sprites:
+                                if dome.rect.collidepoint(mouse_world_pos):
+                                    local_x = int(mouse_world_pos.x - dome.rect.x)
+                                    local_y = int(mouse_world_pos.y - dome.rect.y)
+                                    
+                                    if (0 <= local_x < dome.rect.width and 
+                                        0 <= local_y < dome.rect.height):
+                                        if dome.mask.get_at((local_x, local_y)):
+                                            for zone in self.interaction_zones:
+                                                if isinstance(zone, DoorInteractionZone) and zone.owner == dome:
+                                                    zone.kill()
+                                                    break
+                                            dome.kill()
+                                            print("Dome deleted!")
                                             break
-                                    dome.kill()
-                                    print("Dome deleted!")
-                                    break
+                        
+                        elif self.build_mode:
+                            if self.preview.valid:
+                                dome = GreenhouseDome(
+                                    center_pos=self.preview.rect.center,
+                                    image=self.preview.base_image,
+                                    groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
+                                )
+                                greenhouse_id = dome.greenhouse_id
+                                if greenhouse_id not in self.game.greenhouse_data:
+                                    self.game.greenhouse_data[greenhouse_id] = {
+                                        "soil": {}
+                                    }
+
+                                # Create door interaction zone
+                                door_world_pos = (
+                                    pygame.Vector2(dome.rect.center)
+                                    + dome.door_offset
+                                )
+                                door_rect = pygame.Rect(0, 0, 96, 48)
+                                door_rect.center = door_world_pos
+
+                                zone = DoorInteractionZone(
+                                    rect=door_rect,
+                                    owner=dome,
+                                    text="Press E to Enter"
+                                )
+                                self.interaction_zones.add(zone)
                 
-                elif self.build_mode:
-                    if self.preview.valid:
-                        dome = GreenhouseDome(
-                            center_pos=self.preview.rect.center,
-                            image=self.preview.base_image,
-                            groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
-                        )
-                        greenhouse_id = dome.greenhouse_id
-                        if greenhouse_id not in self.game.greenhouse_data:
-                            self.game.greenhouse_data[greenhouse_id] = {
-                                "soil": {}
-                            }
-
-                        # Create door interaction zone
-                        door_world_pos = (
-                            pygame.Vector2(dome.rect.center)
-                            + dome.door_offset
-                        )
-                        door_rect = pygame.Rect(0, 0, 96, 48)
-                        door_rect.center = door_world_pos
-
-                        zone = DoorInteractionZone(
-                            rect=door_rect,
-                            owner=dome,
-                            text="Press E to Enter"
-                        )
-                        self.interaction_zones.add(zone)
+                elif event.button == 3:  # Right click
+                    # Handle right-click on inventory (for future quick-use)
+                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 3)
+                    if clicked_slot is not None:
+                        slot = self.game.player.inventory.get_slot(clicked_slot)
+                        if slot:
+                            self.game.player.use_item(slot["item_id"])
+            
+            # Mouse button UP events
+            if event.type == pygame.MOUSEBUTTONUP:
+                mouse_pos = pygame.mouse.get_pos()
+                
+                if event.button == 1:  # Left click release
+                    # Handle drag-and-drop
+                    result = self.game.inventory_ui.handle_mouse_up(mouse_pos, 1)
+                    if result:
+                        from_slot, to_slot, action_type = result
+                        
+                        if action_type == 'swap':
+                            from_data = self.game.player.inventory.get_slot(from_slot)
+                            to_data = self.game.player.inventory.get_slot(to_slot)
+                            
+                            # If both slots have the same item, try to stack
+                            if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
+                                if not self.game.inventory_ui.stack_items(from_slot, to_slot):
+                                    # If stacking failed (full), swap instead
+                                    self.game.inventory_ui.swap_slots(from_slot, to_slot)
+                            else:
+                                # Different items or one empty - just swap
+                                self.game.inventory_ui.swap_slots(from_slot, to_slot)
 
     def start_sleep(self):
         if self.sleep_state != self.sleep_state_machine.AWAKE:
@@ -370,11 +405,12 @@ class LevelState:
         self.fade_effect.update(dt)
         self.night_overlay.update()
 
-        # Update inventory hover
-        self.game.inventory_ui.handle_hover(pygame.mouse.get_pos())
-
         # Only update game logic if not sleeping and dt > 0 (not paused)
         if self.sleep_state == self.sleep_state_machine.AWAKE and dt > 0:
+            # Update inventory UI hover state
+            if self.game.inventory_ui:
+                self.game.inventory_ui.update()
+            
             # Meteor spawning
             self.meteor_spawn_timer.update()
             if self.meteor_spawn_timer.deactivate:

@@ -91,10 +91,45 @@ class GreenhouseState:
                 elif event.key == pygame.K_TAB or event.key == pygame.K_i:
                     self.game.inventory_ui.toggle()
             
-            # Handle inventory clicks
+            # Mouse button DOWN events
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    self.game.inventory_ui.handle_click(pygame.mouse.get_pos())
+                mouse_pos = pygame.mouse.get_pos()
+                
+                if event.button == 1:  # Left click
+                    # Try inventory drag start first
+                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 1)
+                    # If clicking outside inventory, handle other interactions here
+                
+                elif event.button == 3:  # Right click
+                    # Handle right-click on inventory (for quick-use)
+                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 3)
+                    if clicked_slot is not None:
+                        slot = self.game.player.inventory.get_slot(clicked_slot)
+                        if slot:
+                            self.game.player.use_item(slot["item_id"])
+            
+            # Mouse button UP events
+            if event.type == pygame.MOUSEBUTTONUP:
+                mouse_pos = pygame.mouse.get_pos()
+                
+                if event.button == 1:  # Left click release
+                    # Handle drag-and-drop
+                    result = self.game.inventory_ui.handle_mouse_up(mouse_pos, 1)
+                    if result:
+                        from_slot, to_slot, action_type = result
+                        
+                        if action_type == 'swap':
+                            from_data = self.game.player.inventory.get_slot(from_slot)
+                            to_data = self.game.player.inventory.get_slot(to_slot)
+                            
+                            # If both slots have the same item, try to stack
+                            if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
+                                if not self.game.inventory_ui.stack_items(from_slot, to_slot):
+                                    # If stacking failed (full), swap instead
+                                    self.game.inventory_ui.swap_slots(from_slot, to_slot)
+                            else:
+                                # Different items or one empty - just swap
+                                self.game.inventory_ui.swap_slots(from_slot, to_slot)
 
     def refill_oxygen(self, dt):
         self.game.player.refill_oxygen(40 * dt)
@@ -102,8 +137,9 @@ class GreenhouseState:
     def run(self, dt):
         self.screen.fill("black")
 
-        # Update hover state for inventory
-        self.game.inventory_ui.handle_hover(pygame.mouse.get_pos())
+        # Update inventory UI hover state
+        if self.game.inventory_ui:
+            self.game.inventory_ui.update()
 
         # Block player input when inventory is open
         if self.game.inventory_ui.visible:
