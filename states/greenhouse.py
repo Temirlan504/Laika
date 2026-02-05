@@ -57,6 +57,10 @@ class GreenhouseState:
             self.game.player.hitbox.center = self.map_loader.player_spawnpoint
 
         self.all_sprites.add(self.game.player)
+        
+        # Center the camera on the greenhouse
+        self.center_camera()
+        
         self.game.interaction_prompt.hide()
 
     def save_soil_state(self):
@@ -67,6 +71,60 @@ class GreenhouseState:
                 'plant': soil.plant
             }
         self.greenhouse_data['soil'] = soil_data
+
+    def center_camera(self):
+        """Center the camera on the greenhouse interior, or follow player if map is larger than screen"""
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+        
+        # Check if the map fits entirely on screen
+        self.map_fits_horizontally = self.map_loader.map_width <= screen_width
+        self.map_fits_vertically = self.map_loader.map_height <= screen_height
+        
+        if self.map_fits_horizontally and self.map_fits_vertically:
+            # Map fits on screen - center it
+            map_center_x = self.map_loader.map_width / 2
+            map_center_y = self.map_loader.map_height / 2
+            
+            screen_center_x = screen_width / 2
+            screen_center_y = screen_height / 2
+            
+            self.all_sprites.offset.x = map_center_x - screen_center_x
+            self.all_sprites.offset.y = map_center_y - screen_center_y
+        else:
+            # Map is larger - will follow player (handled in run method)
+            pass
+    
+    def update_camera_offset(self):
+        """Update camera offset - either centered or following player"""
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+        
+        # Horizontal offset
+        if self.map_fits_horizontally:
+            # Keep centered horizontally
+            map_center_x = self.map_loader.map_width / 2
+            screen_center_x = screen_width / 2
+            self.all_sprites.offset.x = map_center_x - screen_center_x
+        else:
+            # Follow player horizontally
+            offset_x = self.game.player.rect.centerx - screen_width // 2
+            self.all_sprites.offset.x = max(0, min(offset_x, self.map_loader.map_width - screen_width))
+        
+        # Vertical offset
+        if self.map_fits_vertically:
+            # Keep centered vertically
+            map_center_y = self.map_loader.map_height / 2
+            screen_center_y = screen_height / 2
+            self.all_sprites.offset.y = map_center_y - screen_center_y
+        else:
+            # Follow player vertically
+            offset_y = self.game.player.rect.centery - screen_height // 2
+            self.all_sprites.offset.y = max(0, min(offset_y, self.map_loader.map_height - screen_height))
+    
+    def on_resize(self, new_size):
+        """Handle window resize - recalculate camera behavior"""
+        self.center_camera()
 
     def draw_soil(self):
         for soil in self.soil_sprites:
@@ -172,5 +230,15 @@ class GreenhouseState:
         # Draw soil below player
         self.draw_soil()
 
-        # Draw world
-        self.all_sprites.custom_draw()
+        # Update camera offset (smart centering or following)
+        self.update_camera_offset()
+
+        # Draw world with updated offset
+        sprites = sorted(
+            self.all_sprites.sprites(),
+            key=lambda spr: (spr.z_index, spr.rect.centery)
+        )
+
+        for sprite in sprites:
+            offset_rect = sprite.rect.move(-self.all_sprites.offset.x, -self.all_sprites.offset.y)
+            self.screen.blit(sprite.image, offset_rect)
