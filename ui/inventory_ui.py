@@ -1,5 +1,7 @@
 import pygame
+import os
 from items import get_item
+from ui.ui_config import ui_config
 
 class InventoryUI:
     def __init__(self, screen, inventory):
@@ -7,18 +9,49 @@ class InventoryUI:
         self.inventory = inventory
         self.visible = False
 
+        # Load background image
+        self.bg_image = ui_config.get_image('inventory_bg')
+        
+        # DEBUG: Check if image loaded
+        if self.bg_image:
+            print(f"[INVENTORY] Background image loaded: {self.bg_image.get_width()}x{self.bg_image.get_height()}")
+        else:
+            print("[INVENTORY] WARNING: No background image loaded!")
+        
+        # Inventory layout settings based on design
+        # Background: 540x505px
+        # Title area: 58px from top
+        # Side decorations: 15px left and right
+        # Bottom decoration: 16px
+        # Inventory area: 510x430px
+        # Slot size: 72x72px
+        # Padding: 20px sides, 16px top, 25px bottom
+        # Gap between slots: 6px
+        
+        self.panel_width = 540
+        self.panel_height = 505
+        
+        self.slot_size = 72
+        self.slot_gap = 6  # Space between slots
+        
+        # Grid positioning (from top-left of panel)
+        # Left decoration (15px) + left padding (20px) = 35px from left edge
+        self.grid_start_x = 35
+        # Title (58px) + top padding (16px) = 74px from top edge
+        self.grid_start_y = 74
+        
+        # Calculate cols and rows based on inventory area and slot size
+        # Available width: 510px - 40px (left+right padding) = 470px
+        # Available height: 430px - 41px (top+bottom padding) = 389px
+        # With 6px gaps: (72 + 6) * cols - 6 = 470 → cols = 6
+        # With 6px gaps: (72 + 6) * rows - 6 = 389 → rows = 5
         self.cols = 6
-        self.slot_size = int(self.screen.get_width() * 0.06)
-        self.padding = int(self.slot_size * 0.15)
-
-        self.font = pygame.font.Font(None, 24)
-        self.small_font = pygame.font.Font(None, 18)
-
-        # Colors
-        self.bg_color = (30, 30, 40, 240)  # Semi-transparent background
-        self.slot_color = (60, 60, 80)
-        self.slot_hover = (90, 90, 120)
-        self.slot_selected = (120, 120, 160)
+        self.rows = 5
+        
+        # Fonts
+        self.title_font = ui_config.get_font(24)
+        self.item_font = ui_config.get_font(12)
+        self.qty_font = ui_config.get_font(16)
 
         # Hover and interaction state
         self.hovered_slot = None
@@ -35,7 +68,6 @@ class InventoryUI:
     def toggle(self):
         self.visible = not self.visible
         if not self.visible:
-            # Cancel any drag operation when closing
             self.cancel_drag()
 
     def hide(self):
@@ -50,22 +82,19 @@ class InventoryUI:
 
     def get_slot_rect(self, slot_index):
         """Get the rect for a specific inventory slot"""
-        rows = (self.inventory.size + self.cols - 1) // self.cols
-        panel_height = rows * self.slot_size + self.padding * 2
+        # Calculate panel position (centered on screen)
+        panel_x = (self.screen.get_width() - self.panel_width) // 2
+        panel_y = (self.screen.get_height() - self.panel_height) // 2
         
-        # Center the inventory on screen
-        start_x = (self.screen.get_width() - self.cols * self.slot_size) // 2
-        start_y = (self.screen.get_height() - panel_height) // 2
-
+        # Calculate slot position within grid
         row = slot_index // self.cols
         col = slot_index % self.cols
+        
+        # Account for gaps between slots
+        slot_x = panel_x + self.grid_start_x + col * (self.slot_size + self.slot_gap)
+        slot_y = panel_y + self.grid_start_y + row * (self.slot_size + self.slot_gap)
 
-        return pygame.Rect(
-            start_x + col * self.slot_size,
-            start_y + row * self.slot_size + self.padding,
-            self.slot_size,
-            self.slot_size
-        )
+        return pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
 
     def get_slot_at_pos(self, pos):
         """Get the slot index at the given mouse position, or None"""
@@ -78,16 +107,6 @@ class InventoryUI:
                 return i
         return None
     
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.handle_mouse_down(event.pos, event.button)
-        elif event.type == pygame.MOUSEBUTTONUP:
-            result = self.handle_mouse_up(event.pos, event.button)
-            if result:
-                from_slot, to_slot, action = result
-                if action == 'swap':
-                    self.swap_slots(from_slot, to_slot)
-
     def handle_mouse_down(self, pos, button):
         """Handle mouse button down event"""
         if not self.visible:
@@ -127,6 +146,36 @@ class InventoryUI:
                 return (from_slot, to_slot, 'swap')
         
         return None
+    
+    def handle_event(self, event):
+        """Handle pygame events for inventory interaction"""
+        if not self.visible:
+            return
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left click
+                slot_index = self.get_slot_at_pos(event.pos)
+                if slot_index is not None:
+                    slot = self.inventory.get_slot(slot_index)
+                    if slot:
+                        # Start dragging
+                        self.dragging = True
+                        self.dragged_slot = slot_index
+                        rect = self.get_slot_rect(slot_index)
+                        self.drag_offset = (event.pos[0] - rect.centerx, 
+                                          event.pos[1] - rect.centery)
+        
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1 and self.dragging:  # Left click release
+                from_slot = self.dragged_slot
+                to_slot = self.get_slot_at_pos(event.pos)
+                
+                if from_slot is not None and to_slot is not None:
+                    # Try to stack first, then swap if stacking fails
+                    if not self.stack_items(from_slot, to_slot):
+                        self.swap_slots(from_slot, to_slot)
+                
+                self.cancel_drag()
 
     def handle_click(self, mouse_pos):
         """Handle mouse clicks - returns clicked slot index or None (for compatibility)"""
@@ -209,27 +258,6 @@ class InventoryUI:
         
         return True
 
-    def split_stack(self, slot_index):
-        """Split a stack in half (for future shift+click functionality)"""
-        slot = self.inventory.get_slot(slot_index)
-        if not slot or slot["quantity"] <= 1:
-            return False
-        
-        half = slot["quantity"] // 2
-        remaining = slot["quantity"] - half
-        
-        # Find empty slot
-        for i in range(self.inventory.size):
-            if self.inventory.get_slot(i) is None:
-                self.inventory.set_slot(i, {
-                    "item_id": slot["item_id"],
-                    "quantity": half
-                })
-                slot["quantity"] = remaining
-                return True
-        
-        return False
-
     def draw_tooltip(self, slot_index):
         """Draw tooltip for an item"""
         slot = self.inventory.get_slot(slot_index)
@@ -245,14 +273,15 @@ class InventoryUI:
         # Tooltip content
         lines = [
             item.name,
-            f"Quantity: {slot['quantity']}",
+            f"Qty: {slot['quantity']}",
             item.description
         ]
         
         # Calculate tooltip size
-        padding = 8
-        line_height = 20
-        max_width = max(self.font.render(line, True, (255, 255, 255)).get_width() for line in lines)
+        padding = 10
+        line_height = 22
+        tooltip_font = ui_config.get_font(14)
+        max_width = max(tooltip_font.render(line, True, ui_config.WHITE).get_width() for line in lines)
         tooltip_width = max_width + padding * 2
         tooltip_height = len(lines) * line_height + padding * 2
         
@@ -267,15 +296,19 @@ class InventoryUI:
             tooltip_y = mouse_y - tooltip_height - 15
         
         # Draw tooltip background
-        tooltip_rect = pygame.Rect(tooltip_x, tooltip_y, tooltip_width, tooltip_height)
-        pygame.draw.rect(self.screen, (20, 20, 30), tooltip_rect)
-        pygame.draw.rect(self.screen, (100, 100, 120), tooltip_rect, 2)
+        tooltip_surface = pygame.Surface((tooltip_width, tooltip_height))
+        tooltip_surface.fill(ui_config.DARK_GRAY)
+        self.screen.blit(tooltip_surface, (tooltip_x, tooltip_y))
+        
+        # Draw border
+        pygame.draw.rect(self.screen, ui_config.LIGHT_GRAY, 
+                        (tooltip_x, tooltip_y, tooltip_width, tooltip_height), 2)
         
         # Draw text
         y_offset = tooltip_y + padding
         for i, line in enumerate(lines):
-            color = (255, 255, 100) if i == 0 else (220, 220, 220)  # Title in yellow
-            text = self.font.render(line, True, color)
+            color = ui_config.LIGHT_ORANGE if i == 0 else ui_config.WHITE
+            text = tooltip_font.render(line, True, color)
             self.screen.blit(text, (tooltip_x + padding, y_offset))
             y_offset += line_height
 
@@ -283,49 +316,34 @@ class InventoryUI:
         if not self.visible:
             return
 
-        # Calculate panel dimensions
-        rows = (self.inventory.size + self.cols - 1) // self.cols
-        panel_width = self.cols * self.slot_size + self.padding * 2
-        panel_height = rows * self.slot_size + self.padding * 2 + 30  # +30 for title
+        # Calculate panel position (centered on screen)
+        panel_x = (self.screen.get_width() - self.panel_width) // 2
+        panel_y = (self.screen.get_height() - self.panel_height) // 2
         
-        # Center panel on screen
-        panel_x = (self.screen.get_width() - panel_width) // 2
-        panel_y = (self.screen.get_height() - panel_height) // 2
-        
-        # Draw semi-transparent background panel
-        panel_surface = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
-        panel_surface.fill(self.bg_color)
-        self.screen.blit(panel_surface, (panel_x, panel_y))
-        
-        # Draw title
-        title = self.font.render("Inventory", True, (255, 255, 255))
-        title_rect = title.get_rect(centerx=self.screen.get_width() // 2, 
-                                     y=panel_y + 5)
-        self.screen.blit(title, title_rect)
+        # Draw background image or fallback
+        if self.bg_image:
+            self.screen.blit(self.bg_image, (panel_x, panel_y))
+        else:
+            # Fallback: simple gray panel
+            panel_surface = pygame.Surface((self.panel_width, self.panel_height))
+            panel_surface.fill(ui_config.DARK_GRAY)
+            self.screen.blit(panel_surface, (panel_x, panel_y))
+            
+            # Draw title on fallback
+            title_text = self.title_font.render("INVENTORY", True, ui_config.WHITE)
+            title_rect = title_text.get_rect(centerx=panel_x + self.panel_width // 2, 
+                                            y=panel_y + 15)
+            self.screen.blit(title_text, title_rect)
 
-        # Draw inventory slots
+        # Draw items in slots
         for i in range(self.inventory.size):
             # Skip the dragged slot (we'll draw it separately)
             if self.dragging and i == self.dragged_slot:
                 continue
             
-            rect = self.get_slot_rect(i)
-            
-            # Determine slot color
-            if i == self.hovered_slot and not self.dragging:
-                color = self.slot_hover
-            elif i == self.dragged_slot:
-                color = self.slot_selected
-            else:
-                color = self.slot_color
-            
-            # Draw slot background
-            pygame.draw.rect(self.screen, color, rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), rect, 2)
-            
-            # Draw item if present
             slot = self.inventory.get_slot(i)
             if slot:
+                rect = self.get_slot_rect(i)
                 self.draw_item_in_slot(slot, rect)
 
         # Draw dragged item (if dragging)
@@ -335,16 +353,6 @@ class InventoryUI:
             drag_rect.center = (mouse_x - self.drag_offset[0], 
                                mouse_y - self.drag_offset[1])
             
-            # Draw with transparency
-            drag_surface = pygame.Surface((self.slot_size, self.slot_size), pygame.SRCALPHA)
-            pygame.draw.rect(drag_surface, (*self.slot_selected, 180), 
-                           (0, 0, self.slot_size, self.slot_size))
-            pygame.draw.rect(drag_surface, (255, 255, 255, 200), 
-                           (0, 0, self.slot_size, self.slot_size), 2)
-            
-            self.screen.blit(drag_surface, drag_rect)
-            
-            # Draw item
             slot = self.inventory.get_slot(self.dragged_slot)
             if slot:
                 self.draw_item_in_slot(slot, drag_rect, alpha=200)
@@ -359,21 +367,65 @@ class InventoryUI:
         if not item:
             return
         
-        # Draw item name (truncated if needed)
-        name_text = item.name
-        if len(name_text) > 10:
-            name_text = name_text[:8] + ".."
+        # Try to load item sprite/texture from multiple possible paths
+        item_image = None
+        item_id = slot['item_id']
+        
+        # Try different paths (in order of preference)
+        possible_paths = [
+            f"assets/items/{item_id}.png",              # Flat structure
+            f"assets/items/tools/{item_id}.png",        # Tools subfolder
+            f"assets/items/seeds/{item_id}.png",        # Seeds subfolder
+            f"assets/items/crops/{item_id}.png",        # Crops subfolder
+            f"assets/items/resources/{item_id}.png",    # Resources subfolder
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                try:
+                    item_image = pygame.image.load(path).convert_alpha()
+                    # Scale to fit slot (leave some padding)
+                    image_size = int(self.slot_size * 0.7)  # 70% of slot size
+                    item_image = pygame.transform.smoothscale(item_image, (image_size, image_size))
+                    break
+                except Exception as e:
+                    print(f"[INVENTORY] Error loading {path}: {e}")
+                    item_image = None
+        
+        if item_image:
+            # Draw item image centered in slot
+            image_rect = item_image.get_rect(center=rect.center)
+            
+            if alpha < 255:
+                # Apply transparency
+                temp_surface = item_image.copy()
+                temp_surface.set_alpha(alpha)
+                self.screen.blit(temp_surface, image_rect)
+            else:
+                self.screen.blit(item_image, image_rect)
+        else:
+            # Fallback: draw item name as text
+            name_text = item.name
+            if len(name_text) > 8:
+                name_text = name_text[:6] + ".."
+            
+            if alpha < 255:
+                text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                name = self.item_font.render(name_text, True, (*ui_config.WHITE, alpha))
+                text_surface.blit(name, (4, 4))
+                self.screen.blit(text_surface, rect)
+            else:
+                name = self.item_font.render(name_text, True, ui_config.WHITE)
+                self.screen.blit(name, (rect.x + 4, rect.y + 4))
+        
+        # Draw quantity in bottom-right corner
+        qty_text = str(slot["quantity"])
         
         if alpha < 255:
-            # Create a surface for transparency
             text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-            name = self.small_font.render(name_text, True, (220, 220, 220, alpha))
-            qty = self.font.render(str(slot["quantity"]), True, (255, 255, 255, alpha))
-            text_surface.blit(name, (4, 4))
-            text_surface.blit(qty, (rect.width - 20, rect.height - 24))
+            qty = self.qty_font.render(qty_text, True, (*ui_config.WHITE, alpha))
+            text_surface.blit(qty, (rect.width - 22, rect.height - 22))
             self.screen.blit(text_surface, rect)
         else:
-            name = self.small_font.render(name_text, True, (220, 220, 220))
-            qty = self.font.render(str(slot["quantity"]), True, (255, 255, 255))
-            self.screen.blit(name, (rect.x + 4, rect.y + 4))
-            self.screen.blit(qty, (rect.right - 20, rect.bottom - 24))
+            qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
+            self.screen.blit(qty, (rect.right - 22, rect.bottom - 22))

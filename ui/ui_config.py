@@ -27,10 +27,13 @@ class UIConfig:
         
         # ============= UI IMAGES =============
         self.images = {}
-        self._load_ui_images()
+        self._images_loaded = False  # Track if images have been loaded
     
     def _load_ui_images(self):
         """Load UI background images and icons"""
+        if self._images_loaded:
+            return  # Already loaded
+        
         image_paths = {
             'day_time_panel_bg': 'assets/ui/day_time_panel_bg.png',
             'inventory_bg': 'assets/ui/inventory_bg.png',
@@ -41,11 +44,21 @@ class UIConfig:
             try:
                 if os.path.exists(path):
                     self.images[key] = pygame.image.load(path).convert_alpha()
-            except:
+                    print(f"[UI_CONFIG] Loaded {key}: {path}")
+                else:
+                    self.images[key] = None
+                    print(f"[UI_CONFIG] File not found: {path}")
+            except Exception as e:
                 self.images[key] = None
+                print(f"[UI_CONFIG] Error loading {key}: {e}")
+        
+        self._images_loaded = True
     
     def get_image(self, key):
         """Get a loaded UI image, returns None if not found"""
+        # Load images on first access (lazy loading - after display is initialized)
+        if not self._images_loaded:
+            self._load_ui_images()
         return self.images.get(key, None)
     
     def get_font(self, size, bold=False):
