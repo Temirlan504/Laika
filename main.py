@@ -81,10 +81,14 @@ class Game:
                 
                 # Handle window resize
                 if event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode(
-                        event.size, pygame.RESIZABLE
-                    )
-
+                    self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
+                    
+                    # Update screen references in UI elements
+                    self.day_ui.screen = self.screen
+                    self.interaction_prompt.screen = self.screen
+                    if self.inventory_ui:
+                        self.inventory_ui.screen = self.screen
+                    
                     if hasattr(self.state_machine.current_state, "on_resize"):
                         self.state_machine.current_state.on_resize(event.size)
 

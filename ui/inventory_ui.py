@@ -77,6 +77,16 @@ class InventoryUI:
             if rect.collidepoint(pos):
                 return i
         return None
+    
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.handle_mouse_down(event.pos, event.button)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            result = self.handle_mouse_up(event.pos, event.button)
+            if result:
+                from_slot, to_slot, action = result
+                if action == 'swap':
+                    self.swap_slots(from_slot, to_slot)
 
     def handle_mouse_down(self, pos, button):
         """Handle mouse button down event"""
