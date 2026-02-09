@@ -1,4 +1,6 @@
 import pygame
+import os
+from items import get_item
 from ui.ui_config import ui_config
 
 class ChestUI:
@@ -8,8 +10,8 @@ class ChestUI:
         self.chest_inventory = chest_inventory
         self.visible = True
 
-        self.slot_size = 48
-        self.padding = 6
+        self.slot_size = 72  # Match InventoryUI
+        self.padding = 8
         self.cols = 6
 
         self.dragging = False
@@ -17,9 +19,26 @@ class ChestUI:
         self.drag_source_slot = None
 
         self.font = ui_config.get_font(16)
+        self.title_font = ui_config.get_font(24)
+        self.item_font = ui_config.get_font(12)
+        self.qty_font = ui_config.get_font(16)
 
-        self.player_panel = pygame.Rect(100, 100, 320, 300)
-        self.chest_panel  = pygame.Rect(460, 100, 320, 300)
+        # Panel dimensions
+        self.panel_width = 500
+        self.panel_height = 400
+        
+        # Calculate centered positions
+        screen_width = screen.get_width()
+        screen_height = screen.get_height()
+        
+        # Center both panels vertically, space them horizontally
+        spacing = 40
+        total_width = self.panel_width * 2 + spacing
+        start_x = (screen_width - total_width) // 2
+        center_y = (screen_height - self.panel_height) // 2
+        
+        self.player_panel = pygame.Rect(start_x, center_y, self.panel_width, self.panel_height)
+        self.chest_panel = pygame.Rect(start_x + self.panel_width + spacing, center_y, self.panel_width, self.panel_height)
 
     def close(self):
         self.visible = False
@@ -37,8 +56,8 @@ class ChestUI:
         row = index // self.cols
         col = index % self.cols
 
-        x = panel.x + 10 + col * (self.slot_size + self.padding)
-        y = panel.y + 40 + row * (self.slot_size + self.padding)
+        x = panel.x + 20 + col * (self.slot_size + self.padding)
+        y = panel.y + 60 + row * (self.slot_size + self.padding)
 
         return pygame.Rect(x, y, self.slot_size, self.slot_size)
     
@@ -107,7 +126,6 @@ class ChestUI:
 
         # Same item → stack
         if from_data["item_id"] == to_data["item_id"]:
-            from items import get_item
             item = get_item(from_data["item_id"])
             space = item.max_stack - to_data["quantity"]
             if space > 0:
@@ -129,26 +147,98 @@ class ChestUI:
 
     # ----------------- DRAW -----------------
 
+    def draw_item_in_slot(self, slot, rect, alpha=255):
+        """Draw an item inside a slot with image (like InventoryUI)"""
+        item = get_item(slot["item_id"])
+        if not item:
+            return
+        
+        # Try to load item sprite/texture from multiple possible paths
+        item_image = None
+        item_id = slot['item_id']
+        
+        # Try different paths (in order of preference)
+        possible_paths = [
+            f"assets/items/{item_id}.png",              # Flat structure
+            f"assets/items/tools/{item_id}.png",        # Tools subfolder
+            f"assets/items/seeds/{item_id}.png",        # Seeds subfolder
+            f"assets/items/crops/{item_id}.png",        # Crops subfolder
+            f"assets/items/resources/{item_id}.png",    # Resources subfolder
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                try:
+                    item_image = pygame.image.load(path).convert_alpha()
+                    # Scale to fit slot (leave some padding)
+                    image_size = int(self.slot_size * 0.7)  # 70% of slot size
+                    item_image = pygame.transform.smoothscale(item_image, (image_size, image_size))
+                    break
+                except Exception as e:
+                    print(f"[CHEST_UI] Error loading {path}: {e}")
+                    item_image = None
+        
+        if item_image:
+            # Draw item image centered in slot
+            image_rect = item_image.get_rect(center=rect.center)
+            
+            if alpha < 255:
+                # Apply transparency
+                temp_surface = item_image.copy()
+                temp_surface.set_alpha(alpha)
+                self.screen.blit(temp_surface, image_rect)
+            else:
+                self.screen.blit(item_image, image_rect)
+        else:
+            # Fallback: draw item name as text
+            name_text = item.name
+            if len(name_text) > 8:
+                name_text = name_text[:6] + ".."
+            
+            if alpha < 255:
+                text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                name = self.item_font.render(name_text, True, (*ui_config.WHITE, alpha))
+                text_surface.blit(name, (4, 4))
+                self.screen.blit(text_surface, rect)
+            else:
+                name = self.item_font.render(name_text, True, ui_config.WHITE)
+                self.screen.blit(name, (rect.x + 4, rect.y + 4))
+        
+        # Draw quantity in bottom-right corner
+        qty_text = str(slot["quantity"])
+        
+        if alpha < 255:
+            text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            qty = self.qty_font.render(qty_text, True, (*ui_config.WHITE, alpha))
+            text_surface.blit(qty, (rect.width - 22, rect.height - 22))
+            self.screen.blit(text_surface, rect)
+        else:
+            qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
+            self.screen.blit(qty, (rect.right - 22, rect.bottom - 22))
+
     def draw_panel(self, panel, title, inventory):
+        # Draw panel background
         pygame.draw.rect(self.screen, ui_config.BLACK, panel)
         pygame.draw.rect(self.screen, ui_config.WHITE, panel, 2)
 
-        title_surf = self.font.render(title, True, ui_config.WHITE)
-        self.screen.blit(title_surf, (panel.x + 10, panel.y + 10))
+        # Draw title
+        title_surf = self.title_font.render(title, True, ui_config.WHITE)
+        title_rect = title_surf.get_rect(centerx=panel.centerx, y=panel.y + 15)
+        self.screen.blit(title_surf, title_rect)
 
+        # Draw slots
         for i in range(inventory.size):
+            # Skip the dragged slot (we'll draw it separately)
+            if self.dragging and self.drag_source_inventory == inventory and i == self.drag_source_slot:
+                continue
+                
             rect = self.get_slot_rect(panel, i)
             pygame.draw.rect(self.screen, ui_config.DARK_GRAY, rect)
             pygame.draw.rect(self.screen, ui_config.WHITE, rect, 1)
 
             slot = inventory.get_slot(i)
             if slot:
-                txt = self.font.render(
-                    f"{slot['item_id']} x{slot['quantity']}",
-                    True,
-                    ui_config.WHITE
-                )
-                self.screen.blit(txt, (rect.x + 4, rect.y + 4))
+                self.draw_item_in_slot(slot, rect)
 
     def draw(self):
         if not self.visible:
@@ -157,15 +247,13 @@ class ChestUI:
         self.draw_panel(self.player_panel, "INVENTORY", self.player_inventory)
         self.draw_panel(self.chest_panel, "CHEST", self.chest_inventory)
 
-        if self.dragging:
+        # Draw dragged item following mouse
+        if self.dragging and self.drag_source_slot is not None:
             slot = self.drag_source_inventory.get_slot(self.drag_source_slot)
             if slot:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
-                txt = self.font.render(
-                    f"{slot['item_id']} x{slot['quantity']}",
-                    True,
-                    ui_config.WHITE
-                )
-                bg = txt.get_rect(center=(mouse_x, mouse_y))
-                pygame.draw.rect(self.screen, ui_config.BLACK, bg.inflate(6, 6))
-                self.screen.blit(txt, bg)
+                drag_rect = pygame.Rect(0, 0, self.slot_size, self.slot_size)
+                drag_rect.center = (mouse_x, mouse_y)
+                
+                # Draw with transparency
+                self.draw_item_in_slot(slot, drag_rect, alpha=200)
