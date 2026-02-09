@@ -140,3 +140,14 @@ class MapLoader:
                         obj.x * SCALE + (obj.width * SCALE) / 2,
                         obj.y * SCALE + (obj.height * SCALE) / 2
                     )
+
+        # ---- Interaction zones (generic: chest, doors, etc) ----
+        if self.has_layer('interaction_zones'):
+            for obj in tmx_data.get_layer_by_name('interaction_zones'):
+                InteractionSprite(
+                    pos=(obj.x * SCALE, obj.y * SCALE),
+                    size=(obj.width * SCALE, obj.height * SCALE),
+                    groups=interaction_sprites,
+                    name=obj.name,
+                    text="Press E"
+                )

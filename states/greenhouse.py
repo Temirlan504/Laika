@@ -3,6 +3,8 @@ from utils.settings import *
 from camera import CameraGroup
 from utils.map_loader import MapLoader
 from greenhouse.soil import SoilLayer
+from greenhouse.chest import Chest
+from greenhouse.chest_ui import ChestUI
 
 class GreenhouseState:
     def __init__(self, state_machine, game):
@@ -12,6 +14,11 @@ class GreenhouseState:
 
         self.current_greenhouse_id = None
 
+        self.chests = []
+        self.active_chest = None
+        self.chest_ui = None
+        self.near_chest = False
+
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
         self.return_pos = return_pos
@@ -20,6 +27,18 @@ class GreenhouseState:
 
         # Load greenhouse map
         self.map_loader = MapLoader("data/tmx/greenhouse.tmx")
+
+        # ---- Setup chests (3 per greenhouse) ----
+        if 'chests' not in self.greenhouse_data:
+            self.greenhouse_data['chests'] = {}
+
+        self.chests = []
+
+        for i in range(3):
+            chest_id = f"{greenhouse_id}_chest_{i}"
+            chest = Chest(chest_id)
+            chest.load(self.greenhouse_data['chests'].get(chest_id))
+            self.chests.append(chest)
 
         # Sprite groups
         self.collision_sprites = pygame.sprite.Group()
@@ -62,6 +81,20 @@ class GreenhouseState:
         self.center_camera()
         
         self.game.interaction_prompt.hide()
+
+    def open_chest(self):
+        if self.chest_ui:
+            return
+
+        chest = self.chests[0]  # simple rule for now
+        chest.open()
+
+        self.active_chest = chest
+        self.chest_ui = ChestUI(
+            self.game.screen,
+            self.game.player.inventory,
+            self.active_chest.inventory
+        )
 
     def save_soil_state(self):
         soil_data = {}
@@ -134,19 +167,30 @@ class GreenhouseState:
 
     def handle_input(self, events):
         for event in events:
+            if self.chest_ui and self.chest_ui.visible:
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self.chest_ui.handle_mouse_click(event.pos)
+
             if event.type == pygame.KEYDOWN:
-                # ESC: Close inventory if open, otherwise exit greenhouse
                 if event.key == pygame.K_ESCAPE:
+                    if self.chest_ui:
+                        self.greenhouse_data['chests'][self.active_chest.id] = \
+                            self.active_chest.serialize()
+                        self.chest_ui.close()
+                        self.chest_ui = None
+                        self.active_chest = None
+                        return
+
                     if self.game.inventory_ui.visible:
                         self.game.inventory_ui.hide()
-                    else:
-                        self.save_soil_state()
-                        self.state_machine.change_state(
-                            "level", return_pos=self.return_pos
-                        )
+                        return
+
+                    return
                 
-                # Toggle inventory (handled here instead of main.py)
-                elif event.key == pygame.K_TAB or event.key == pygame.K_i:
+                elif event.key == pygame.K_e and self.near_chest and not self.chest_ui:
+                    self.open_chest()
+
+                elif event.key == pygame.K_TAB and not self.chest_ui:
                     self.game.inventory_ui.toggle()
             
             # Mouse button DOWN events
@@ -200,7 +244,7 @@ class GreenhouseState:
             self.game.inventory_ui.update()
 
         # Block player input when inventory is open
-        if self.game.inventory_ui.visible:
+        if self.game.inventory_ui.visible or (self.chest_ui and self.chest_ui.visible):
             self.game.player.block_input()
         else:
             self.game.player.unblock_input()
@@ -242,3 +286,16 @@ class GreenhouseState:
         for sprite in sprites:
             offset_rect = sprite.rect.move(-self.all_sprites.offset.x, -self.all_sprites.offset.y)
             self.screen.blit(sprite.image, offset_rect)
+
+        self.near_chest = False
+        for zone in self.interaction_zones:
+            if zone.name == "chest" and zone.rect.colliderect(self.game.player.hitbox):
+                self.near_chest = True
+                self.game.interaction_prompt.show("Press E to Open Chest")
+                break
+
+        if not self.near_chest:
+            self.game.interaction_prompt.hide()
+
+        if self.chest_ui and self.chest_ui.visible:
+            self.chest_ui.draw()
