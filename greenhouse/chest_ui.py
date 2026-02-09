@@ -12,6 +12,10 @@ class ChestUI:
         self.padding = 6
         self.cols = 6
 
+        self.dragging = False
+        self.drag_source_inventory = None
+        self.drag_source_slot = None
+
         self.font = ui_config.get_font(16)
 
         self.player_panel = pygame.Rect(100, 100, 320, 300)
@@ -19,31 +23,6 @@ class ChestUI:
 
     def close(self):
         self.visible = False
-
-    # ----------------- INPUT -----------------
-
-    def handle_mouse_click(self, pos):
-        if not self.visible:
-            return
-
-        # Player → Chest
-        slot = self.get_slot_at_pos(pos, self.player_panel, self.player_inventory)
-        if slot is not None:
-            self.transfer(self.player_inventory, self.chest_inventory, slot)
-            return
-
-        # Chest → Player
-        slot = self.get_slot_at_pos(pos, self.chest_panel, self.chest_inventory)
-        if slot is not None:
-            self.transfer(self.chest_inventory, self.player_inventory, slot)
-
-    def transfer(self, source, target, index):
-        slot = source.get_slot(index)
-        if not slot:
-            return
-
-        if target.add_item(slot["item_id"], slot["quantity"]):
-            source.set_slot(index, None)
 
     # ----------------- SLOT HELPERS -----------------
 
@@ -62,6 +41,91 @@ class ChestUI:
         y = panel.y + 40 + row * (self.slot_size + self.padding)
 
         return pygame.Rect(x, y, self.slot_size, self.slot_size)
+    
+    
+    # ----------------- DRAG & DROP -----------------
+    def handle_mouse_down(self, pos):
+        if not self.visible:
+            return
+
+        # Player inventory
+        slot = self.get_slot_at_pos(pos, self.player_panel, self.player_inventory)
+        if slot is not None:
+            if self.player_inventory.get_slot(slot):
+                self.start_drag(self.player_inventory, slot)
+                return
+
+        # Chest inventory
+        slot = self.get_slot_at_pos(pos, self.chest_panel, self.chest_inventory)
+        if slot is not None:
+            if self.chest_inventory.get_slot(slot):
+                self.start_drag(self.chest_inventory, slot)
+
+    def start_drag(self, inventory, slot_index):
+        self.dragging = True
+        self.drag_source_inventory = inventory
+        self.drag_source_slot = slot_index
+
+    def handle_mouse_up(self, pos):
+        if not self.dragging:
+            return
+
+        source = self.drag_source_inventory
+        source_slot = self.drag_source_slot
+        slot_data = source.get_slot(source_slot)
+
+        if not slot_data:
+            self.cancel_drag()
+            return
+
+        # Drop onto player inventory
+        target_slot = self.get_slot_at_pos(pos, self.player_panel, self.player_inventory)
+        if target_slot is not None:
+            self.try_drop(source, self.player_inventory, source_slot, target_slot)
+            self.cancel_drag()
+            return
+
+        # Drop onto chest inventory
+        target_slot = self.get_slot_at_pos(pos, self.chest_panel, self.chest_inventory)
+        if target_slot is not None:
+            self.try_drop(source, self.chest_inventory, source_slot, target_slot)
+            self.cancel_drag()
+            return
+
+        # Dropped nowhere → cancel
+        self.cancel_drag()
+
+    def try_drop(self, source, target, from_slot, to_slot):
+        from_data = source.get_slot(from_slot)
+        to_data = target.get_slot(to_slot)
+
+        # Empty target → move
+        if to_data is None:
+            target.set_slot(to_slot, from_data)
+            source.set_slot(from_slot, None)
+            return
+
+        # Same item → stack
+        if from_data["item_id"] == to_data["item_id"]:
+            from items import get_item
+            item = get_item(from_data["item_id"])
+            space = item.max_stack - to_data["quantity"]
+            if space > 0:
+                moved = min(space, from_data["quantity"])
+                to_data["quantity"] += moved
+                from_data["quantity"] -= moved
+                if from_data["quantity"] <= 0:
+                    source.set_slot(from_slot, None)
+                return
+
+        # Otherwise → swap
+        source.set_slot(from_slot, to_data)
+        target.set_slot(to_slot, from_data)
+
+    def cancel_drag(self):
+        self.dragging = False
+        self.drag_source_inventory = None
+        self.drag_source_slot = None
 
     # ----------------- DRAW -----------------
 
@@ -92,3 +156,16 @@ class ChestUI:
 
         self.draw_panel(self.player_panel, "INVENTORY", self.player_inventory)
         self.draw_panel(self.chest_panel, "CHEST", self.chest_inventory)
+
+        if self.dragging:
+            slot = self.drag_source_inventory.get_slot(self.drag_source_slot)
+            if slot:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                txt = self.font.render(
+                    f"{slot['item_id']} x{slot['quantity']}",
+                    True,
+                    ui_config.WHITE
+                )
+                bg = txt.get_rect(center=(mouse_x, mouse_y))
+                pygame.draw.rect(self.screen, ui_config.BLACK, bg.inflate(6, 6))
+                self.screen.blit(txt, bg)

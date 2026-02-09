@@ -18,6 +18,7 @@ class GreenhouseState:
         self.active_chest = None
         self.chest_ui = None
         self.near_chest = False
+        self.near_chest_index = None
 
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
@@ -83,17 +84,17 @@ class GreenhouseState:
         self.game.interaction_prompt.hide()
 
     def open_chest(self):
-        if self.chest_ui:
+        if self.chest_ui or self.near_chest_index is None:
             return
 
-        chest = self.chests[0]  # simple rule for now
+        chest = self.chests[self.near_chest_index]
         chest.open()
 
         self.active_chest = chest
         self.chest_ui = ChestUI(
             self.game.screen,
             self.game.player.inventory,
-            self.active_chest.inventory
+            chest.inventory
         )
 
     def save_soil_state(self):
@@ -167,71 +168,60 @@ class GreenhouseState:
 
     def handle_input(self, events):
         for event in events:
+
+            # ---------------- CHEST UI OPEN ----------------
             if self.chest_ui and self.chest_ui.visible:
+
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.greenhouse_data['chests'][self.active_chest.id] = \
+                        self.active_chest.serialize()
+                    self.chest_ui.close()
+                    self.chest_ui = None
+                    self.active_chest = None
+                    return
+
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.chest_ui.handle_mouse_click(event.pos)
+                    self.chest_ui.handle_mouse_down(event.pos)
+                    return
+
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self.chest_ui.handle_mouse_up(event.pos)
+                    return
+
+                # IMPORTANT: stop processing input here
+                return
+
+            # ---------------- NO CHEST UI ----------------
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    if self.chest_ui:
-                        self.greenhouse_data['chests'][self.active_chest.id] = \
-                            self.active_chest.serialize()
-                        self.chest_ui.close()
-                        self.chest_ui = None
-                        self.active_chest = None
-                        return
+                if event.key == pygame.K_TAB:
+                    self.game.inventory_ui.toggle()
 
-                    if self.game.inventory_ui.visible:
-                        self.game.inventory_ui.hide()
-                        return
-
-                    return
-                
-                elif event.key == pygame.K_e and self.near_chest and not self.chest_ui:
+                elif event.key == pygame.K_e and self.near_chest:
                     self.open_chest()
 
-                elif event.key == pygame.K_TAB and not self.chest_ui:
-                    self.game.inventory_ui.toggle()
-            
-            # Mouse button DOWN events
+                elif event.key == pygame.K_ESCAPE:
+                    if self.game.inventory_ui.visible:
+                        self.game.inventory_ui.hide()
+                    return
+
+            # Inventory mouse handling ONLY when chest is closed
             if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if event.button == 1:  # Left click
-                    # Try inventory drag start first
-                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 1)
-                    # If clicking outside inventory, handle other interactions here
-                
-                elif event.button == 3:  # Right click
-                    # Handle right-click on inventory (for quick-use)
-                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 3)
-                    if clicked_slot is not None:
-                        slot = self.game.player.inventory.get_slot(clicked_slot)
-                        if slot:
-                            self.game.player.use_item(slot["item_id"])
-            
-            # Mouse button UP events
+                if event.button in (1, 3):
+                    self.game.inventory_ui.handle_mouse_down(
+                        pygame.mouse.get_pos(), event.button
+                    )
+
             if event.type == pygame.MOUSEBUTTONUP:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if event.button == 1:  # Left click release
-                    # Handle drag-and-drop
-                    result = self.game.inventory_ui.handle_mouse_up(mouse_pos, 1)
-                    if result:
-                        from_slot, to_slot, action_type = result
-                        
-                        if action_type == 'swap':
-                            from_data = self.game.player.inventory.get_slot(from_slot)
-                            to_data = self.game.player.inventory.get_slot(to_slot)
-                            
-                            # If both slots have the same item, try to stack
-                            if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
-                                if not self.game.inventory_ui.stack_items(from_slot, to_slot):
-                                    # If stacking failed (full), swap instead
-                                    self.game.inventory_ui.swap_slots(from_slot, to_slot)
-                            else:
-                                # Different items or one empty - just swap
-                                self.game.inventory_ui.swap_slots(from_slot, to_slot)
+                if event.button == 1:
+                    self.game.inventory_ui.handle_mouse_up(
+                        pygame.mouse.get_pos(), 1
+                    )
+            
+            # Exit greenhouse
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                self.save_soil_state()
+                self.state_machine.change_state("level", return_pos=self.return_pos)
 
     def refill_oxygen(self, dt):
         self.game.player.refill_oxygen(40 * dt)
@@ -288,9 +278,15 @@ class GreenhouseState:
             self.screen.blit(sprite.image, offset_rect)
 
         self.near_chest = False
-        for zone in self.interaction_zones:
-            if zone.name == "chest" and zone.rect.colliderect(self.game.player.hitbox):
+        self.near_chest_index = None
+        self.chest_zones = [
+            z for z in self.interaction_zones if z.name == "chest"
+        ]
+
+        for i, zone in enumerate(self.chest_zones):
+            if zone.rect.colliderect(self.game.player.hitbox):
                 self.near_chest = True
+                self.near_chest_index = i
                 self.game.interaction_prompt.show("Press E to Open Chest")
                 break
 
