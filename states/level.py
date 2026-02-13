@@ -28,8 +28,8 @@ class LevelState:
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
-        self.max_meteorites = 100
-        self.meteor_spawn_timer = Timer(100)
+        self.max_meteorites = 50
+        self.meteor_spawn_timer = Timer(10)
         self.meteor_spawn_timer.activate()
 
         self.debug_mode = False
@@ -372,29 +372,108 @@ class LevelState:
                         (mouse_screen_pos[0] - 7, mouse_screen_pos[1] + 7), 2)
 
     def try_spawn_meteor(self):
+        """Spawn a meteor at a valid ground position, avoiding obstacles"""
         if len(self.meteorites) >= self.max_meteorites:
             return
 
         if not self.ground_positions:
             return
 
-        pos = random.choice(self.ground_positions)
+        # Try multiple times to find a valid spawn position
+        max_attempts = 15
+        for attempt in range(max_attempts):
+            pos = random.choice(self.ground_positions)
+            spawn_x = pos[0] + TILE_SIZE // 2
+            spawn_y = pos[1] + TILE_SIZE // 2
+            
+            # Create a rect for the meteor spawn position
+            meteor_spawn_rect = pygame.Rect(
+                spawn_x - TILE_SIZE // 2,
+                spawn_y - TILE_SIZE // 2,
+                TILE_SIZE,
+                TILE_SIZE
+            )
+            
+            # Check if position is valid
+            if self.is_valid_meteor_spawn(meteor_spawn_rect):
+                Meteorite(
+                    pos=pos,
+                    groups=[
+                        self.all_sprites,
+                        self.meteorites,
+                        self.collision_sprites
+                    ]
+                )
+                print(f"[METEOR] Spawned at ({pos[0]}, {pos[1]}) - Total: {len(self.meteorites)}/{self.max_meteorites}")
+                break
+            elif attempt == max_attempts - 1:
+                print(f"[METEOR] Failed to find valid spawn position after {max_attempts} attempts")
 
-        # Don't spawn on player
-        if self.game.player.hitbox.collidepoint(
-            pos[0] + TILE_SIZE // 2,
-            pos[1] + TILE_SIZE // 2
-        ):
-            return
-
-        Meteorite(
-            pos=pos,
-            groups=[
-                self.all_sprites,
-                self.meteorites,
-                self.collision_sprites
-            ]
-        )
+    def is_valid_meteor_spawn(self, meteor_rect):
+        """Check if a position is valid for meteor spawning"""
+        
+        # Don't spawn too close to player (give them some space)
+        player_distance_threshold = TILE_SIZE * 3  # 3 tiles away
+        dx = self.game.player.rect.centerx - meteor_rect.centerx
+        dy = self.game.player.rect.centery - meteor_rect.centery
+        distance_to_player = (dx*dx + dy*dy) ** 0.5
+        
+        if distance_to_player < player_distance_threshold:
+            return False
+        
+        # Don't spawn on greenhouses
+        for dome in self.dome_sprites:
+            if meteor_rect.colliderect(dome.rect):
+                # Check mask collision for precise detection
+                if hasattr(dome, 'mask') and dome.mask:
+                    offset_x = dome.rect.x - meteor_rect.x
+                    offset_y = dome.rect.y - meteor_rect.y
+                    
+                    meteor_mask = pygame.mask.Mask(meteor_rect.size)
+                    meteor_mask.fill()
+                    
+                    if meteor_mask.overlap(dome.mask, (offset_x, offset_y)):
+                        return False
+        
+        # Don't spawn on other collision objects (cliffs, rocks, etc.)
+        for sprite in self.collision_sprites:
+            # Skip meteorites themselves
+            if sprite in self.meteorites:
+                continue
+            # Skip domes (already checked above)
+            if sprite in self.dome_sprites:
+                continue
+            # Skip player (already checked above)
+            if sprite == self.game.player:
+                continue
+                
+            if meteor_rect.colliderect(sprite.rect):
+                # For sprites with masks, do precise collision
+                if hasattr(sprite, 'mask') and sprite.mask:
+                    offset_x = sprite.rect.x - meteor_rect.x
+                    offset_y = sprite.rect.y - meteor_rect.y
+                    
+                    meteor_mask = pygame.mask.Mask(meteor_rect.size)
+                    meteor_mask.fill()
+                    
+                    if meteor_mask.overlap(sprite.mask, (offset_x, offset_y)):
+                        return False
+                else:
+                    # For sprites without masks, rect collision is enough
+                    return False
+        
+        # Don't spawn too close to existing meteorites
+        min_distance = TILE_SIZE * 2  # At least 2 tiles apart
+        for meteor in self.meteorites:
+            dx = meteor.rect.centerx - meteor_rect.centerx
+            dy = meteor.rect.centery - meteor_rect.centery
+            distance = (dx*dx + dy*dy) ** 0.5
+            
+            if distance < min_distance:
+                return False
+        
+        # Position is valid!
+        return True
 
     def handle_tool_events(self):
         """Handle tool usage events from player"""
