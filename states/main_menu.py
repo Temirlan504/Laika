@@ -136,50 +136,9 @@ class MainMenuState:
         self.state_machine.change_state("level")
     
     def continue_game(self):
-        """Continue from most recent save"""
-        print("Attempting to continue game from most recent save...")
-        
-        # Find most recent save (check auto-save first, then manual saves)
-        save_slot = None
-        
-        # Check auto-save (slot 0)
-        if self.game.save_manager.has_auto_save():
-            save_slot = 0
-            print("Found auto-save (slot 0)")
-        else:
-            # Find most recent manual save
-            slots = self.game.save_manager.get_save_slots()
-            most_recent = None
-            most_recent_slot = None
-            
-            for slot in slots:
-                if slot['exists']:
-                    if most_recent is None or slot['timestamp'] > most_recent:
-                        most_recent = slot['timestamp']
-                        most_recent_slot = slot['slot']
-            
-            if most_recent_slot is not None:
-                save_slot = most_recent_slot
-                print(f"Found manual save in slot {save_slot}")
-        
-        if save_slot is None:
-            print("No save files found")
-            return
-        
-        # First check if player exists, if not create basic player
-        if self.game.player is None:
-            print("Creating player for load...")
-            self.game.initialize_game()
-        
-        # Load the save data
-        print(f"Loading save from slot {save_slot}...")
-        success = self.game.save_manager.load_game(self.game, slot=save_slot)
-        
-        if success:
-            print("Save loaded successfully, changing to level state")
-            self.state_machine.change_state("level")
-        else:
-            print("Failed to load save")
+        """Open load menu to choose which save to continue from"""
+        print("Opening load menu...")
+        self.state_machine.change_state("load_menu", mode='load')
 
     def load_game(self):
         """Open load menu"""
