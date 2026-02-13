@@ -85,7 +85,7 @@ class MainMenuState:
         new_game_btn = add_button("NEW GAME", 0, self.new_game)
         self.buttons.append(new_game_btn)
 
-        continue_btn = add_button("CONTINUE", 1, self.continue_game)
+        continue_btn = add_button("LOAD GAME", 1, self.continue_game)
         has_save = self.has_save_file()
         print(f"[MAIN_MENU] Has save file: {has_save}")
         if not has_save:
