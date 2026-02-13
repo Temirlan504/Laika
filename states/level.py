@@ -64,19 +64,27 @@ class LevelState:
         if self.game.player is None:
             raise RuntimeError("Player must be initialized before entering level state")
         
+        # Save current player position (in case it was loaded from save)
+        saved_position = self.game.player.rect.center
+        
         # Load map tiles
         self.game_map.setup(
             self.all_sprites, self.collision_sprites,
             self.interaction_zones, ground_positions=self.ground_positions
         )
 
-        # Spawn player
-        if self.game_map.player_spawnpoint:
+        # Only spawn player at map spawn point if this is a NEW game
+        # (check if player is still at default starting position)
+        default_start = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        
+        # If player is at default position AND there's a map spawnpoint, use it
+        if saved_position == default_start and self.game_map.player_spawnpoint:
             self.game.player.rect.center = self.game_map.player_spawnpoint
             self.game.player.hitbox.center = self.game_map.player_spawnpoint
+        # Otherwise, keep the loaded position (restore it)
         else:
-            self.game.player.rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-            self.game.player.hitbox.center = self.game.player.rect.center
+            self.game.player.rect.center = saved_position
+            self.game.player.hitbox.center = saved_position
 
         self.all_sprites.add(self.game.player)
         self.dynamic_sprites.add(self.game.player)
@@ -87,6 +95,10 @@ class LevelState:
             print("ERROR: Level entered without player! Returning to main menu.")
             self.state_machine.change_state("main_menu")
             return
+        
+        # Load any pending buildings from save game
+        if hasattr(self.game, '_pending_buildings'):
+            self.game.save_manager.load_pending_buildings(self.game)
         
         # Show game UI elements
         self.game.day_ui.visible = True
@@ -258,6 +270,9 @@ class LevelState:
                 plant = data['plant']
                 if plant:
                     plant.grow_to_final()
+        
+        # Auto-save after sleeping
+        self.game.save_manager.auto_save(self.game)
 
         # Jump to morning
         self.game.clock_system.set_time(6, 0)

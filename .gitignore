@@ -38,6 +38,7 @@ desktop.ini
 # ──────────────────────────────
 # Save files and runtime data
 data/
+saves/
 
 # Log files
 *.log

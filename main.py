@@ -1,5 +1,7 @@
 import pygame
 import sys
+from states.save_load_menu import SaveLoadMenuState
+from utils.save_manager import SaveManager
 from utils.settings import *
 from states.main_menu import MainMenuState
 from states.level import LevelState
@@ -45,14 +47,22 @@ class Game:
         self.ui_manager.add(self.day_ui)
         self.ui_manager.add(self.interaction_prompt)
 
+        # Initialize save manager FIRST (before creating states that need it)
+        self.save_manager = SaveManager()
+
         # State Machine Setup
         self.state_machine = StateMachine(self)
         self.state_machine.add_state("main_menu", MainMenuState)
         self.state_machine.add_state("level", LevelState)
         self.state_machine.add_state("pause_menu", PauseMenuState)
         self.state_machine.add_state("greenhouse", GreenhouseState)
+        
+        # Register save/load menu states
+        self.state_machine.add_state("save_menu", SaveLoadMenuState)
+        self.state_machine.add_state("load_menu", SaveLoadMenuState)
 
-        self.state_machine.change_state("main_menu")  # Start at main menu
+        # NOW change to main menu (which needs save_manager to check for saves)
+        self.state_machine.change_state("main_menu")
 
     def initialize_game(self):
         """Initialize player and game systems (called when starting new game)"""

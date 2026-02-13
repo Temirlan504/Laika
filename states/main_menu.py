@@ -25,6 +25,9 @@ class MainMenuState:
         self.game.interaction_prompt.visible = False
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False
+        
+        # Recreate buttons to update continue button state
+        self.create_buttons()
     
     def load_fonts(self):
         """Load Press Start 2P font or fallback"""
@@ -83,10 +86,15 @@ class MainMenuState:
         self.buttons.append(new_game_btn)
 
         continue_btn = add_button("CONTINUE", 1, self.continue_game)
-        if not self.has_save_file():
+        has_save = self.has_save_file()
+        print(f"[MAIN_MENU] Has save file: {has_save}")
+        if not has_save:
             continue_btn.normal_color = (100, 100, 100)
             continue_btn.hover_color = (100, 100, 100)
             continue_btn.callback = None
+            print("[MAIN_MENU] Continue button disabled (no save)")
+        else:
+            print("[MAIN_MENU] Continue button enabled")
         self.buttons.append(continue_btn)
 
         settings_btn = add_button("SETTINGS", 2, self.open_settings)
@@ -96,8 +104,18 @@ class MainMenuState:
         self.buttons.append(quit_btn)
     
     def has_save_file(self):
-        """Check if save file exists"""
-        return os.path.exists("save_data.json")
+        """Check if any save file exists (auto-save or manual saves)"""
+        # Check auto-save first
+        if self.game.save_manager.has_auto_save():
+            return True
+        
+        # Check manual save slots (1-3)
+        slots = self.game.save_manager.get_save_slots()
+        for slot in slots:
+            if slot['exists']:
+                return True
+        
+        return False
     
     # Button callbacks
     def new_game(self):
@@ -118,11 +136,54 @@ class MainMenuState:
         self.state_machine.change_state("level")
     
     def continue_game(self):
-        """Load and continue saved game"""
-        if self.has_save_file():
-            print("Loading saved game...")
-            # TODO: Load save data
+        """Continue from most recent save"""
+        print("Attempting to continue game from most recent save...")
+        
+        # Find most recent save (check auto-save first, then manual saves)
+        save_slot = None
+        
+        # Check auto-save (slot 0)
+        if self.game.save_manager.has_auto_save():
+            save_slot = 0
+            print("Found auto-save (slot 0)")
+        else:
+            # Find most recent manual save
+            slots = self.game.save_manager.get_save_slots()
+            most_recent = None
+            most_recent_slot = None
+            
+            for slot in slots:
+                if slot['exists']:
+                    if most_recent is None or slot['timestamp'] > most_recent:
+                        most_recent = slot['timestamp']
+                        most_recent_slot = slot['slot']
+            
+            if most_recent_slot is not None:
+                save_slot = most_recent_slot
+                print(f"Found manual save in slot {save_slot}")
+        
+        if save_slot is None:
+            print("No save files found")
+            return
+        
+        # First check if player exists, if not create basic player
+        if self.game.player is None:
+            print("Creating player for load...")
+            self.game.initialize_game()
+        
+        # Load the save data
+        print(f"Loading save from slot {save_slot}...")
+        success = self.game.save_manager.load_game(self.game, slot=save_slot)
+        
+        if success:
+            print("Save loaded successfully, changing to level state")
             self.state_machine.change_state("level")
+        else:
+            print("Failed to load save")
+
+    def load_game(self):
+        """Open load menu"""
+        self.state_machine.change_state("load_menu", mode='load')
     
     def open_settings(self):
         """Open settings menu"""

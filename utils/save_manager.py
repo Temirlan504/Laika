@@ -1,0 +1,396 @@
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+class SaveManager:
+    """
+    Centralized save/load system for the game.
+    Handles player data, world state, greenhouses, and buildings.
+    """
+    
+    def __init__(self, save_directory="saves"):
+        self.save_directory = Path(save_directory)
+        self.save_directory.mkdir(exist_ok=True)
+        self.current_slot = None
+        
+    def get_save_slots(self):
+        """Get list of available save slots with metadata"""
+        slots = []
+        for i in range(1, 4):  # 3 save slots
+            slot_file = self.save_directory / f"save_slot_{i}.json"
+            if slot_file.exists():
+                try:
+                    with open(slot_file, 'r') as f:
+                        data = json.load(f)
+                        slots.append({
+                            'slot': i,
+                            'exists': True,
+                            'timestamp': data.get('metadata', {}).get('timestamp', 'Unknown'),
+                            'day': data.get('world', {}).get('day', 0),
+                            'playtime': data.get('metadata', {}).get('playtime', 0)
+                        })
+                except Exception as e:
+                    print(f"Error reading save slot {i}: {e}")
+                    slots.append({'slot': i, 'exists': False})
+            else:
+                slots.append({'slot': i, 'exists': False})
+        return slots
+    
+    def save_game(self, game, slot=1):
+        """
+        Save the entire game state to a JSON file.
+        
+        Args:
+            game: Main game object with all systems
+            slot: Save slot number (1-3)
+        """
+        self.current_slot = slot
+        
+        # Ensure save directory exists
+        self.save_directory.mkdir(exist_ok=True)
+        
+        try:
+            save_data = {
+                'metadata': self._save_metadata(game),
+                'player': self._save_player(game.player),
+                'world': self._save_world(game),
+                'greenhouses': self._save_greenhouses(game),
+                'buildings': self._save_buildings(game)
+            }
+            
+            # Write to file
+            slot_file = self.save_directory / f"save_slot_{slot}.json"
+            with open(slot_file, 'w') as f:
+                json.dump(save_data, f, indent=2)
+            
+            print(f"Game saved to slot {slot}")
+            return True
+            
+        except Exception as e:
+            print(f"Error saving game: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def load_game(self, game, slot=1):
+        """
+        Load game state from a JSON file.
+        
+        Args:
+            game: Main game object to populate
+            slot: Save slot number (1-3)
+        
+        Returns:
+            bool: True if load succeeded, False otherwise
+        """
+        self.current_slot = slot
+        slot_file = self.save_directory / f"save_slot_{slot}.json"
+        
+        if not slot_file.exists():
+            print(f"Save slot {slot} does not exist")
+            return False
+        
+        try:
+            with open(slot_file, 'r') as f:
+                save_data = json.load(f)
+            
+            # Load in order: world first, then player, then structures
+            self._load_world(game, save_data.get('world', {}))
+            self._load_player(game.player, save_data.get('player', {}))
+            self._load_greenhouses(game, save_data.get('greenhouses', {}))
+            
+            # Store buildings data for later loading (after level state is created)
+            game._pending_buildings = save_data.get('buildings', [])
+            
+            print(f"Game loaded from slot {slot}")
+            return True
+            
+        except Exception as e:
+            print(f"Error loading game: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def delete_save(self, slot):
+        """Delete a save slot"""
+        slot_file = self.save_directory / f"save_slot_{slot}.json"
+        if slot_file.exists():
+            os.remove(slot_file)
+            print(f"Deleted save slot {slot}")
+            return True
+        return False
+    
+    # ==================== SAVE METHODS ====================
+    
+    def _save_metadata(self, game):
+        """Save metadata about the save file"""
+        return {
+            'version': '1.0',
+            'timestamp': datetime.now().isoformat(),
+            'playtime': getattr(game, 'playtime', 0)  # You can track this if needed
+        }
+    
+    def _save_player(self, player):
+        """Save player state"""
+        return {
+            'position': {
+                'x': player.rect.centerx,
+                'y': player.rect.centery
+            },
+            'health': player.current_health,
+            'hunger': player.current_hunger,
+            'oxygen': player.current_oxygen,
+            'max_health': player.max_health,
+            'max_hunger': player.max_hunger,
+            'max_oxygen': player.max_oxygen,
+            'selected_tool': player.selected_tool,
+            'selected_seed': player.selected_seed,
+            'inventory': player.inventory.serialize()
+        }
+    
+    def _save_world(self, game):
+        """Save world state (time, day, etc.)"""
+        return {
+            'day': game.day_cycle.day,
+            'time': {
+                'hour': game.clock_system.hour,
+                'minute': game.clock_system.minute
+            }
+        }
+    
+    def _save_greenhouses(self, game):
+        """Save all greenhouse data"""
+        greenhouses = {}
+        
+        for greenhouse_id, greenhouse_data in game.greenhouse_data.items():
+            soil_data = {}
+            
+            # Save each soil plot
+            for pos_key, soil_info in greenhouse_data.get('soil', {}).items():
+                # Convert tuple keys to string format "x,y"
+                if isinstance(pos_key, tuple):
+                    str_key = f"{pos_key[0]},{pos_key[1]}"
+                else:
+                    str_key = str(pos_key)
+                
+                # Serialize plant object if it exists
+                plant_data = None
+                plant = soil_info.get('plant')
+                if plant is not None:
+                    plant_data = {
+                        'plant_type': plant.plant_type,
+                        'growth_stage': plant.growth_stage,
+                        'days_grown': plant.days_grown
+                    }
+                
+                # Soil data matches what greenhouse.py expects:
+                # {'state': ..., 'plant': ...}
+                soil_data[str_key] = {
+                    'state': soil_info.get('state', 'empty'),
+                    'plant': plant_data
+                }
+            
+            # Save chest data if it exists (greenhouse.py uses 'chests' plural)
+            chests_data = {}
+            if 'chests' in greenhouse_data:
+                # Save all chests for this greenhouse
+                for chest_id, chest_inventory in greenhouse_data['chests'].items():
+                    chests_data[chest_id] = chest_inventory
+            
+            greenhouses[greenhouse_id] = {
+                'soil': soil_data,
+                'chests': chests_data  # Use 'chests' plural to match greenhouse.py
+            }
+        
+        return greenhouses
+    
+    def _save_buildings(self, game):
+        """Save placed buildings (domes)"""
+        buildings = []
+        
+        # Access the level state to get dome sprites
+        level_state = game.state_machine.state_instances.get('level')
+        if level_state and hasattr(level_state, 'dome_sprites'):
+            for dome in level_state.dome_sprites:
+                buildings.append({
+                    'type': 'greenhouse_dome',
+                    'greenhouse_id': dome.greenhouse_id,
+                    'position': {
+                        'x': dome.rect.centerx,
+                        'y': dome.rect.centery
+                    }
+                })
+        
+        return buildings
+    
+    # ==================== LOAD METHODS ====================
+    
+    def _load_player(self, player, data):
+        """Load player state"""
+        if not data:
+            return
+        
+        # Position
+        pos = data.get('position', {})
+        if pos:
+            player.rect.centerx = pos.get('x', player.rect.centerx)
+            player.rect.centery = pos.get('y', player.rect.centery)
+            player.hitbox.center = player.rect.center
+        
+        # Stats
+        player.current_health = data.get('health', player.max_health)
+        player.current_hunger = data.get('hunger', player.max_hunger)
+        player.current_oxygen = data.get('oxygen', player.max_oxygen)
+        player.max_health = data.get('max_health', 100)
+        player.max_hunger = data.get('max_hunger', 100)
+        player.max_oxygen = data.get('max_oxygen', 100)
+        
+        # Tools
+        player.selected_tool = data.get('selected_tool', 'pickaxe')
+        player.selected_seed = data.get('selected_seed', 'potato_seed')
+        
+        # Inventory
+        inventory_data = data.get('inventory', [])
+        if inventory_data:
+            player.inventory.deserialize(inventory_data)
+    
+    def _load_world(self, game, data):
+        """Load world state"""
+        if not data:
+            return
+        
+        # Day
+        game.day_cycle.day = data.get('day', 0)
+        
+        # Time
+        time_data = data.get('time', {})
+        if time_data:
+            hour = time_data.get('hour', 6)
+            minute = time_data.get('minute', 0)
+            game.clock_system.set_time(hour, minute)
+    
+    def _load_greenhouses(self, game, data):
+        """Load all greenhouse data"""
+        if not data:
+            return
+        
+        from greenhouse.plant import Plant
+        
+        for greenhouse_id_str, greenhouse_info in data.items():
+            # Convert string ID back to integer if it's a number
+            try:
+                greenhouse_id = int(greenhouse_id_str)
+            except ValueError:
+                greenhouse_id = greenhouse_id_str
+            
+            # Initialize greenhouse in game data if not exists
+            if greenhouse_id not in game.greenhouse_data:
+                game.greenhouse_data[greenhouse_id] = {'soil': {}}
+            
+            # Load soil data
+            soil_data = greenhouse_info.get('soil', {})
+            for pos_key, soil_info in soil_data.items():
+                # Convert string key back to tuple if needed (format: "x,y")
+                if ',' in str(pos_key):
+                    parts = pos_key.split(',')
+                    actual_key = (int(parts[0]), int(parts[1]))
+                else:
+                    actual_key = pos_key
+                
+                # Recreate Plant object from saved data
+                plant = None
+                plant_data = soil_info.get('plant')
+                if plant_data is not None:
+                    plant = Plant(plant_data['plant_type'])
+                    plant.growth_stage = plant_data.get('growth_stage', 0)
+                    plant.days_grown = plant_data.get('days_grown', 0)
+                
+                # Greenhouse.py expects {'state': ..., 'plant': ...}
+                game.greenhouse_data[greenhouse_id]['soil'][actual_key] = {
+                    'state': soil_info.get('state', 'empty'),
+                    'plant': plant
+                }
+            
+            # Load chests data (greenhouse.py uses 'chests' plural)
+            chests_data = greenhouse_info.get('chests', {})
+            if chests_data:
+                game.greenhouse_data[greenhouse_id]['chests'] = chests_data
+    
+    def _load_buildings(self, game, data):
+        """Load placed buildings"""
+        if not data:
+            return
+        
+        import pygame
+        from sprites import GreenhouseDome
+        from building.door import DoorInteractionZone
+        
+        # Get the level state
+        level_state = game.state_machine.state_instances.get('level')
+        if not level_state:
+            print("Warning: Cannot load buildings, level state not found")
+            return
+        
+        # Load dome image
+        dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        dome_image = pygame.transform.scale(dome_image, (612, 429))
+        
+        # Spawn each building
+        for building_data in data:
+            if building_data.get('type') == 'greenhouse_dome':
+                pos = building_data.get('position', {})
+                center_x = pos.get('x', 0)
+                center_y = pos.get('y', 0)
+                greenhouse_id = building_data.get('greenhouse_id')
+                
+                # Convert greenhouse_id to integer if it's stored as a string
+                if isinstance(greenhouse_id, str) and greenhouse_id.isdigit():
+                    greenhouse_id = int(greenhouse_id)
+                
+                # Create the dome
+                dome = GreenhouseDome(
+                    center_pos=(center_x, center_y),
+                    image=dome_image,
+                    groups=[
+                        level_state.all_sprites,
+                        level_state.collision_sprites,
+                        level_state.dome_sprites
+                    ]
+                )
+                
+                # Override the auto-generated ID with the saved one
+                dome.greenhouse_id = greenhouse_id
+                
+                # Create door interaction zone
+                door_world_pos = (
+                    pygame.Vector2(dome.rect.center) + dome.door_offset
+                )
+                door_rect = pygame.Rect(0, 0, 96, 48)
+                door_rect.center = door_world_pos
+                
+                zone = DoorInteractionZone(
+                    rect=door_rect,
+                    owner=dome,
+                    text="Press E to Enter"
+                )
+                level_state.interaction_zones.add(zone)
+                
+                print(f"Loaded greenhouse dome at ({center_x}, {center_y})")
+    
+    def load_pending_buildings(self, game):
+        """Load buildings that were deferred during game load"""
+        if hasattr(game, '_pending_buildings'):
+            buildings_data = game._pending_buildings
+            self._load_buildings(game, buildings_data)
+            del game._pending_buildings
+            print(f"Loaded {len(buildings_data)} pending buildings")
+    
+    def auto_save(self, game):
+        """Perform an auto-save (uses slot 0 as auto-save slot)"""
+        return self.save_game(game, slot=0)
+    
+    def has_auto_save(self):
+        """Check if auto-save exists"""
+        auto_save_file = self.save_directory / "save_slot_0.json"
+        return auto_save_file.exists()

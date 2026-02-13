@@ -217,10 +217,7 @@ class PauseMenuState:
     
     def save_game(self):
         """Save the game"""
-        print("Saving game... (TODO)")
-        # TODO: Implement save system
-        # For now, just show a message
-        pass
+        self.state_machine.change_state("save_menu", mode='save')
     
     def show_main_menu_confirm(self):
         """Show confirmation dialog for returning to main menu"""
