@@ -1,7 +1,7 @@
 class ClockSystem:
     def __init__(self, day_cycle):
         self.minutes = 6 * 60
-        self.speed = 200
+        self.speed = 100
         self.day_cycle = day_cycle
         self.subscribers = []
 
@@ -28,7 +28,7 @@ class ClockSystem:
         return f"{self.hour:02d}:{self.minute:02d}"
 
     def can_sleep(self):
-        return self.hour >= 20 or self.hour < 4
+        return self.hour >= 20
 
     def set_time(self, hour, minute=0):
         self.minutes = hour * 60 + minute

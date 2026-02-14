@@ -32,7 +32,7 @@ class LevelState:
         self.meteor_spawn_timer = Timer(10)
         self.meteor_spawn_timer.activate()
 
-        self.LAST_SOL = 2
+        self.LAST_SOL = 10
 
         self.debug_mode = False
         self.debug_timer = 0
@@ -271,6 +271,8 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = self.sleep_state_machine.ASLEEP
+        
+        # Sleeping always advances the day now (since we can't sleep after midnight)
         if not self.game.day_cycle.day_advanced:
             self.game.day_cycle.try_advance_day("sleep")
 
@@ -284,13 +286,15 @@ class LevelState:
         # Auto-save after sleeping
         self.game.save_manager.auto_save(self.game)
 
-        # Jump to morning
+        # Jump to morning and reset cycle for the new day
         self.game.clock_system.set_time(6, 0)
+        self.game.day_cycle.reset_cycle()
+        
         self.fade_effect.fade_out(self.on_fade_in_complete)
         
         # Check if we've reached the final day
         if self.check_ending_trigger():
-            return  # Ending triggered, don't continue
+            return
 
     def check_ending_trigger(self):
         """Check if we've reached the final day and trigger ending"""
