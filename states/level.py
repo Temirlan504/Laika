@@ -32,6 +32,8 @@ class LevelState:
         self.meteor_spawn_timer = Timer(10)
         self.meteor_spawn_timer.activate()
 
+        self.LAST_SOL = 2
+
         self.debug_mode = False
         self.debug_timer = 0
         
@@ -58,6 +60,14 @@ class LevelState:
         self.oxygen_system = OxygenSystem()
 
         self.setup_level()
+
+    def on_resize(self, size):
+        # Update local screen reference
+        self.screen = self.game.screen
+
+        # Tell effects to rebuild their surfaces
+        self.fade_effect.on_resize(self.screen)
+        self.night_overlay.on_resize(self.screen)
 
     def setup_level(self):
         # Make sure player exists
@@ -277,6 +287,32 @@ class LevelState:
         # Jump to morning
         self.game.clock_system.set_time(6, 0)
         self.fade_effect.fade_out(self.on_fade_in_complete)
+        
+        # Check if we've reached the final day
+        if self.check_ending_trigger():
+            return  # Ending triggered, don't continue
+
+    def check_ending_trigger(self):
+        """Check if we've reached the final day and trigger ending"""
+        if self.game.day_cycle.day >= self.LAST_SOL:
+            print(f"[ENDING] Reached final day ({self.LAST_SOL})! Triggering ending...")
+            
+            # Block player input
+            if self.game.player:
+                self.game.player.block_input()
+            
+            # Transition to ending scene
+            self.state_machine.change_state("ending_scene")
+            return True
+        return False
+    
+    def on_new_day(self, day):
+        """Called when a new day starts (from DayCycle)"""
+        print(f"[LEVEL] New day started: Sol {day}")
+        
+        # Check if this is the final day
+        if self.check_ending_trigger():
+            return  # Ending triggered, don't continue
 
     def on_fade_in_complete(self):
         self.sleep_state = self.sleep_state_machine.AWAKE

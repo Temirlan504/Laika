@@ -1,13 +1,18 @@
 import pygame
 import sys
-from states.save_load_menu import SaveLoadMenuState
+
 from utils.save_manager import SaveManager
 from utils.settings import *
+
 from states.main_menu import MainMenuState
 from states.level import LevelState
 from states.pause_menu import PauseMenuState
 from states.greenhouse import GreenhouseState
 from states.state_machine import StateMachine
+from states.save_load_menu import SaveLoadMenuState
+from states.ending_scene_state import EndingSceneState
+from states.credits_state import CreditsState
+
 from ui.ui_manager import UIManager
 from ui.hud import DayUI
 from ui.interaction_ui import InteractionPrompt
@@ -56,12 +61,11 @@ class Game:
         self.state_machine.add_state("level", LevelState)
         self.state_machine.add_state("pause_menu", PauseMenuState)
         self.state_machine.add_state("greenhouse", GreenhouseState)
-        
-        # Register save/load menu states
+        self.state_machine.add_state("ending_scene", EndingSceneState)
+        self.state_machine.add_state("credits", CreditsState)
         self.state_machine.add_state("save_menu", SaveLoadMenuState)
         self.state_machine.add_state("load_menu", SaveLoadMenuState)
 
-        # NOW change to main menu (which needs save_manager to check for saves)
         self.state_machine.change_state("main_menu")
 
     def initialize_game(self):

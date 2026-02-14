@@ -9,12 +9,20 @@ class FadeEffect:
         self.target_alpha = 0
         self.active = False
 
-        self.surface = pygame.Surface(screen.get_size())
-        self.surface.fill((0, 0, 0))
-        self.surface.set_alpha(self.alpha)
+        self._rebuild_surface()
 
         self.on_fade_in_complete = None
         self.on_fade_out_complete = None
+
+    def _rebuild_surface(self):
+        size = self.screen.get_size()
+        self.surface = pygame.Surface(size)
+        self.surface.fill((0, 0, 0))
+        self.surface.set_alpha(int(self.alpha))
+
+    def on_resize(self, screen):
+        self.screen = screen
+        self._rebuild_surface()
 
     def fade_in(self, callback=None):
         self.target_alpha = 255
@@ -62,12 +70,19 @@ class NightOverlay:
         self.clock = clock_system
         self.screen = screen
 
-        self.max_alpha = 140  # how dark midnight is (tweak this)
+        self.max_alpha = 140
         self.alpha = 0
 
-        # Night color (bluish)
-        self.surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+        self._rebuild_surface()
+
+    def _rebuild_surface(self):
+        size = self.screen.get_size()
+        self.surface = pygame.Surface(size, pygame.SRCALPHA)
         self.surface.fill((20, 30, 60))
+
+    def on_resize(self, screen):
+        self.screen = screen
+        self._rebuild_surface()
 
     def update(self):
         hour = self.clock.hour
@@ -77,17 +92,14 @@ class NightOverlay:
     def _calculate_alpha(self, hour, minute):
         time = hour + minute / 60.0
 
-        # 16:00 → 00:00 (fade IN)
         if 16 <= time < 24:
-            t = (time - 16) / 8.0   # 0 → 1
+            t = (time - 16) / 8.0
             return int(t * self.max_alpha)
 
-        # 00:00 → 06:00 (fade OUT)
         if 0 <= time < 6:
-            t = time / 6.0          # 0 → 1
+            t = time / 6.0
             return int((1 - t) * self.max_alpha)
 
-        # Daytime
         return 0
 
     def draw(self):
