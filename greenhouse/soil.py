@@ -17,7 +17,7 @@ class SoilTile(pygame.sprite.Sprite):
         self.tile_pos = (rect.x // TILE_SIZE, rect.y // TILE_SIZE)
 
         # Timer for plant growth (in milliseconds)
-        self.growth_timer = Timer(1500000000, self.advance_plant)
+        self.growth_timer = Timer(1500, self.advance_plant)
 
     def hoe(self):
         if self.state == "dry":

@@ -21,7 +21,7 @@ class GreenhouseDome(pygame.sprite.Sprite):
     _next_id = 1  # Class variable to assign unique IDs
     def __init__(self, center_pos, image, groups, z_index=2):
         super().__init__(groups)
-        self.door_offset = pygame.Vector2(230, 200)  # Door position relative to dome center
+        self.door_offset = pygame.Vector2(10, 210)  # Door position relative to dome center
         self.image = image
         self.rect = self.image.get_rect(center=center_pos)
         

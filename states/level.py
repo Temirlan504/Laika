@@ -29,12 +29,12 @@ class LevelState:
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
         self.max_meteorites = 50
-        self.meteor_spawn_timer = Timer(10)
+        self.meteor_spawn_timer = Timer(10000)  # Try to spawn a meteor every 10 seconds
         self.meteor_spawn_timer.activate()
 
         self.LAST_SOL = 10
 
-        self.debug_mode = False
+        self.debug_mode = True
         self.debug_timer = 0
         
         # Load Tiled map
