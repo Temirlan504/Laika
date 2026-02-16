@@ -173,6 +173,11 @@ class LevelState:
                     if self.delete_mode:
                         self.build_mode = False
                     print(f"Delete mode: {'ON' if self.delete_mode else 'OFF'}")
+                
+                # Hotbar number keys (1-8)
+                elif pygame.K_1 <= event.key <= pygame.K_9:
+                    slot_index = event.key - pygame.K_1  # Convert key to 0-8
+                    self.game.player.hotbar.select_slot(slot_index)
             
             # Mouse button DOWN events
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -237,6 +242,14 @@ class LevelState:
                         slot = self.game.player.inventory.get_slot(clicked_slot)
                         if slot:
                             self.game.player.use_item(slot["item_id"])
+
+                # Scroll wheel up
+                elif event.button == 4:
+                    self.game.player.hotbar.select_previous()
+
+                # Scroll wheel down
+                elif event.button == 5:
+                    self.game.player.hotbar.select_next()
             
             # Mouse button UP events
             if event.type == pygame.MOUSEBUTTONUP:
@@ -246,20 +259,32 @@ class LevelState:
                     # Handle drag-and-drop
                     result = self.game.inventory_ui.handle_mouse_up(mouse_pos, 1)
                     if result:
-                        from_slot, to_slot, action_type = result
+                        from_info, to_info, action_type = result
                         
                         if action_type == 'swap':
-                            from_data = self.game.player.inventory.get_slot(from_slot)
-                            to_data = self.game.player.inventory.get_slot(to_slot)
+                            # from_info and to_info are now tuples like ('inventory', index) or ('hotbar', index)
+                            from_type, from_index = from_info
+                            to_type, to_index = to_info
+                            
+                            # Get slot data based on storage type
+                            if from_type == 'inventory':
+                                from_data = self.game.player.inventory.get_slot(from_index)
+                            else:  # hotbar
+                                from_data = self.game.player.hotbar.get_slot(from_index)
+                            
+                            if to_type == 'inventory':
+                                to_data = self.game.player.inventory.get_slot(to_index)
+                            else:  # hotbar
+                                to_data = self.game.player.hotbar.get_slot(to_index)
                             
                             # If both slots have the same item, try to stack
                             if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
-                                if not self.game.inventory_ui.stack_items(from_slot, to_slot):
+                                if not self.game.inventory_ui.stack_items(from_info, to_info):
                                     # If stacking failed (full), swap instead
-                                    self.game.inventory_ui.swap_slots(from_slot, to_slot)
+                                    self.game.inventory_ui.swap_slots(from_info, to_info)
                             else:
                                 # Different items or one empty - just swap
-                                self.game.inventory_ui.swap_slots(from_slot, to_slot)
+                                self.game.inventory_ui.swap_slots(from_info, to_info)
 
     def start_sleep(self):
         if self.sleep_state != self.sleep_state_machine.AWAKE:
@@ -588,13 +613,16 @@ class LevelState:
         self.night_overlay.draw()
         self.fade_effect.draw()
 
+        if hasattr(self.game, 'hotbar_ui'):
+            self.game.hotbar_ui.draw()
+
         # Debug info (only when dt > 0, not paused)
-        if dt > 0:
-            self.debug_timer += dt
-            if self.debug_timer >= 1.0:
-                print(
-                    f"[DEBUG] HP={self.game.player.current_health:.0f} | "
-                    f"O2={self.game.player.current_oxygen:.0f} | "
-                    f"Hunger={self.game.player.current_hunger:.0f}"
-                )
-                self.debug_timer = 0
+        # if dt > 0:
+        #     self.debug_timer += dt
+        #     if self.debug_timer >= 1.0:
+        #         print(
+        #             f"[DEBUG] HP={self.game.player.current_health:.0f} | "
+        #             f"O2={self.game.player.current_oxygen:.0f} | "
+        #             f"Hunger={self.game.player.current_hunger:.0f}"
+        #         )
+        #         self.debug_timer = 0

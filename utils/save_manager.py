@@ -146,7 +146,8 @@ class SaveManager:
             'max_oxygen': player.max_oxygen,
             'selected_tool': player.selected_tool,
             'selected_seed': player.selected_seed,
-            'inventory': player.inventory.serialize()
+            'inventory': player.inventory.serialize(),
+            'hotbar': player.hotbar.serialize()  # This is correct
         }
     
     def _save_world(self, game):
@@ -254,6 +255,10 @@ class SaveManager:
         inventory_data = data.get('inventory', [])
         if inventory_data:
             player.inventory.deserialize(inventory_data)
+        
+        # Hotbar - FIXED: Only pass the data, not the key name
+        hotbar_data = data.get('hotbar', [None] * 9)
+        player.hotbar.deserialize(hotbar_data)
     
     def _load_world(self, game, data):
         """Load world state"""

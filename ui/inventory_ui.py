@@ -4,49 +4,26 @@ from items import get_item
 from ui.ui_config import ui_config
 
 class InventoryUI:
-    def __init__(self, screen, inventory):
+    def __init__(self, screen, inventory, hotbar):
         self.screen = screen
         self.inventory = inventory
+        self.hotbar = hotbar  # Add hotbar reference
         self.visible = False
 
         # Load background image
         self.bg_image = ui_config.get_image('inventory_bg')
+        self.bg_image = pygame.transform.scale(self.bg_image, (600, 600)) if self.bg_image else None
         
-        # DEBUG: Check if image loaded
-        if self.bg_image:
-            print(f"[INVENTORY] Background image loaded: {self.bg_image.get_width()}x{self.bg_image.get_height()}")
-        else:
-            print("[INVENTORY] WARNING: No background image loaded!")
-        
-        # Inventory layout settings based on design
-        # Background: 540x505px
-        # Title area: 58px from top
-        # Side decorations: 15px left and right
-        # Bottom decoration: 16px
-        # Inventory area: 510x430px
-        # Slot size: 72x72px
-        # Padding: 20px sides, 16px top, 25px bottom
-        # Gap between slots: 6px
-        
-        self.panel_width = 540
-        self.panel_height = 505
-        
-        self.slot_size = 72
-        self.slot_gap = 6  # Space between slots
-        
-        # Grid positioning (from top-left of panel)
-        # Left decoration (15px) + left padding (20px) = 35px from left edge
-        self.grid_start_x = 35
-        # Title (58px) + top padding (16px) = 74px from top edge
-        self.grid_start_y = 74
-        
-        # Calculate cols and rows based on inventory area and slot size
-        # Available width: 510px - 40px (left+right padding) = 470px
-        # Available height: 430px - 41px (top+bottom padding) = 389px
-        # With 6px gaps: (72 + 6) * cols - 6 = 470 → cols = 6
-        # With 6px gaps: (72 + 6) * rows - 6 = 389 → rows = 5
+        self.panel_width = 600
+        self.panel_height = 600
+
+        self.slot_size = 64
+        self.slot_gap = 13
+
+        self.grid_start_x = 75
+        self.grid_start_y = 75
         self.cols = 6
-        self.rows = 5
+        self.rows = 6
         
         # Fonts
         self.title_font = ui_config.get_font(24)
@@ -64,6 +41,23 @@ class InventoryUI:
         # Tooltip
         self.show_tooltip = False
         self.tooltip_slot = None
+        
+        # Add hotbar slot rendering (MUST be after grid_start_y and rows are defined)
+        self.hotbar_start_y = self.grid_start_y + self.rows * (self.slot_size + self.slot_gap) + 30
+
+    def get_hotbar_slot_rect(self, slot_index):
+        """Get the rect for a hotbar slot in the inventory screen"""
+        panel_x = (self.screen.get_width() - self.panel_width) // 2
+        panel_y = (self.screen.get_height() - self.panel_height) // 2
+        
+        # Center the hotbar row
+        hotbar_width = self.hotbar.num_slots * (self.slot_size + self.slot_gap) - self.slot_gap
+        hotbar_start_x = (self.panel_width - hotbar_width) // 2
+        
+        slot_x = panel_x + hotbar_start_x + slot_index * (self.slot_size + self.slot_gap)
+        slot_y = panel_y + self.hotbar_start_y
+        
+        return pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
 
     def toggle(self):
         self.visible = not self.visible
@@ -97,14 +91,23 @@ class InventoryUI:
         return pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
 
     def get_slot_at_pos(self, pos):
-        """Get the slot index at the given mouse position, or None"""
+        """Get the slot index at the given mouse position
+        Returns: ('inventory', index) or ('hotbar', index) or None"""
         if not self.visible:
             return None
         
+        # Check inventory slots
         for i in range(self.inventory.size):
             rect = self.get_slot_rect(i)
             if rect.collidepoint(pos):
-                return i
+                return ('inventory', i)
+        
+        # Check hotbar slots
+        for i in range(self.hotbar.num_slots):
+            rect = self.get_hotbar_slot_rect(i)
+            if rect.collidepoint(pos):
+                return ('hotbar', i)
+        
         return None
     
     def handle_mouse_down(self, pos, button):
@@ -113,37 +116,45 @@ class InventoryUI:
             return None
         
         if button == 1:  # Left click
-            slot_index = self.get_slot_at_pos(pos)
-            if slot_index is not None:
-                slot = self.inventory.get_slot(slot_index)
+            slot_info = self.get_slot_at_pos(pos)
+            if slot_info:
+                storage_type, slot_index = slot_info
+                
+                # Get the slot data
+                if storage_type == 'inventory':
+                    slot = self.inventory.get_slot(slot_index)
+                    rect = self.get_slot_rect(slot_index)
+                else:  # hotbar
+                    slot = self.hotbar.get_slot(slot_index)
+                    rect = self.get_hotbar_slot_rect(slot_index)
+                
                 if slot:
                     # Start dragging
                     self.dragging = True
-                    self.dragged_slot = slot_index
-                    rect = self.get_slot_rect(slot_index)
+                    self.dragged_slot = (storage_type, slot_index)
                     self.drag_offset = (pos[0] - rect.centerx, pos[1] - rect.centery)
-                    return slot_index
+                    return slot_info
         
         elif button == 3:  # Right click
-            slot_index = self.get_slot_at_pos(pos)
-            if slot_index is not None:
-                return slot_index
+            slot_info = self.get_slot_at_pos(pos)
+            if slot_info:
+                return slot_info
         
         return None
 
     def handle_mouse_up(self, pos, button):
-        """Handle mouse button up event - returns (from_slot, to_slot, action_type)"""
+        """Handle mouse button up event"""
         if not self.visible:
             return None
         
         if button == 1 and self.dragging:  # Left click release
-            from_slot = self.dragged_slot
-            to_slot = self.get_slot_at_pos(pos)
+            from_info = self.dragged_slot
+            to_info = self.get_slot_at_pos(pos)
             
             self.cancel_drag()
             
-            if from_slot is not None and to_slot is not None:
-                return (from_slot, to_slot, 'swap')
+            if from_info and to_info:
+                return (from_info, to_info, 'swap')
         
         return None
     
@@ -199,37 +210,66 @@ class InventoryUI:
             return
 
         mouse_pos = pygame.mouse.get_pos()
-        self.hovered_slot = self.get_slot_at_pos(mouse_pos)
+        slot_info = self.get_slot_at_pos(mouse_pos)
+        self.hovered_slot = slot_info
         
         # Show tooltip if hovering over a slot with an item (and not dragging)
-        if self.hovered_slot is not None and not self.dragging:
-            slot = self.inventory.get_slot(self.hovered_slot)
+        if slot_info and not self.dragging:
+            storage_type, slot_index = slot_info
+            slot = self.inventory.get_slot(slot_index) if storage_type == 'inventory' else self.hotbar.get_slot(slot_index)
+            
             if slot:
-                self.tooltip_slot = self.hovered_slot
+                self.tooltip_slot = slot_info
                 self.show_tooltip = True
             else:
                 self.show_tooltip = False
         else:
             self.show_tooltip = False
 
-    def swap_slots(self, from_index, to_index):
-        """Swap items between two inventory slots"""
-        if from_index == to_index:
-            return True
+    def swap_slots(self, from_info, to_info):
+        """Swap items between two slots (can be inventory or hotbar)"""
+        from_type, from_index = from_info
+        to_type, to_index = to_info
         
-        from_slot = self.inventory.get_slot(from_index)
-        to_slot = self.inventory.get_slot(to_index)
+        # Get slot data
+        if from_type == 'inventory':
+            from_slot = self.inventory.get_slot(from_index)
+        else:
+            from_slot = self.hotbar.get_slot(from_index)
         
-        # Simple swap
-        self.inventory.set_slot(from_index, to_slot)
-        self.inventory.set_slot(to_index, from_slot)
+        if to_type == 'inventory':
+            to_slot = self.inventory.get_slot(to_index)
+        else:
+            to_slot = self.hotbar.get_slot(to_index)
+        
+        # Swap
+        if from_type == 'inventory':
+            self.inventory.set_slot(from_index, to_slot)
+        else:
+            self.hotbar.set_slot(from_index, to_slot)
+        
+        if to_type == 'inventory':
+            self.inventory.set_slot(to_index, from_slot)
+        else:
+            self.hotbar.set_slot(to_index, from_slot)
         
         return True
 
-    def stack_items(self, from_index, to_index):
+    def stack_items(self, from_info, to_info):
         """Try to stack items from one slot to another"""
-        from_slot = self.inventory.get_slot(from_index)
-        to_slot = self.inventory.get_slot(to_index)
+        from_type, from_index = from_info
+        to_type, to_index = to_info
+        
+        # Get slots
+        if from_type == 'inventory':
+            from_slot = self.inventory.get_slot(from_index)
+        else:
+            from_slot = self.hotbar.get_slot(from_index)
+        
+        if to_type == 'inventory':
+            to_slot = self.inventory.get_slot(to_index)
+        else:
+            to_slot = self.hotbar.get_slot(to_index)
         
         if not from_slot or not to_slot:
             return False
@@ -254,13 +294,21 @@ class InventoryUI:
         
         # If source slot is empty, clear it
         if from_slot["quantity"] <= 0:
-            self.inventory.set_slot(from_index, None)
+            if from_type == 'inventory':
+                self.inventory.set_slot(from_index, None)
+            else:
+                self.hotbar.set_slot(from_index, None)
         
         return True
 
-    def draw_tooltip(self, slot_index):
+    def draw_tooltip(self, slot_info):
         """Draw tooltip for an item"""
-        slot = self.inventory.get_slot(slot_index)
+        storage_type, slot_index = slot_info
+        
+        if storage_type == 'inventory':
+            slot = self.inventory.get_slot(slot_index)
+        else:
+            slot = self.hotbar.get_slot(slot_index)
         if not slot:
             return
         
@@ -335,30 +383,62 @@ class InventoryUI:
                                             y=panel_y + 15)
             self.screen.blit(title_text, title_rect)
 
-        # Draw items in slots
+        # Draw inventory items in slots
         for i in range(self.inventory.size):
-            # Skip the dragged slot (we'll draw it separately)
-            if self.dragging and i == self.dragged_slot:
+            # Skip the dragged slot
+            if self.dragging and self.dragged_slot == ('inventory', i):
                 continue
             
             slot = self.inventory.get_slot(i)
             if slot:
                 rect = self.get_slot_rect(i)
                 self.draw_item_in_slot(slot, rect)
+        
+        # Draw hotbar section label
+        panel_x = (self.screen.get_width() - self.panel_width) // 2
+        panel_y = (self.screen.get_height() - self.panel_height) // 2
+        
+        hotbar_label = self.title_font.render("HOTBAR", True, ui_config.LIGHT_ORANGE)
+        hotbar_label_rect = hotbar_label.get_rect(
+            centerx=panel_x + self.panel_width // 2,
+            bottom=panel_y + self.hotbar_start_y - 10
+        )
+        self.screen.blit(hotbar_label, hotbar_label_rect)
+        
+        # Draw hotbar slots
+        for i in range(self.hotbar.num_slots):
+            rect = self.get_hotbar_slot_rect(i)
+            
+            # Draw slot background
+            pygame.draw.rect(self.screen, (60, 60, 60), rect)
+            pygame.draw.rect(self.screen, (100, 100, 100), rect, 2)
+            
+            # Skip the dragged slot
+            if self.dragging and self.dragged_slot == ('hotbar', i):
+                continue
+            
+            slot = self.hotbar.get_slot(i)
+            if slot:
+                self.draw_item_in_slot(slot, rect)
 
         # Draw dragged item (if dragging)
-        if self.dragging and self.dragged_slot is not None:
+        if self.dragging and self.dragged_slot:
             mouse_x, mouse_y = pygame.mouse.get_pos()
             drag_rect = pygame.Rect(0, 0, self.slot_size, self.slot_size)
             drag_rect.center = (mouse_x - self.drag_offset[0], 
                                mouse_y - self.drag_offset[1])
             
-            slot = self.inventory.get_slot(self.dragged_slot)
+            storage_type, slot_index = self.dragged_slot
+            if storage_type == 'inventory':
+                slot = self.inventory.get_slot(slot_index)
+            else:
+                slot = self.hotbar.get_slot(slot_index)
+            
             if slot:
                 self.draw_item_in_slot(slot, drag_rect, alpha=200)
 
         # Draw tooltip
-        if self.show_tooltip and self.tooltip_slot is not None:
+        if self.show_tooltip and self.tooltip_slot:
             self.draw_tooltip(self.tooltip_slot)
 
     def draw_item_in_slot(self, slot, rect, alpha=255):

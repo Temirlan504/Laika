@@ -1,8 +1,9 @@
 import pygame
+from items import ItemType, get_item
 from utils.settings import *
 from utils.support import import_folder
 from utils.timer import Timer
-from systems.inventory_system import Inventory
+from systems.inventory_system import Hotbar, Inventory
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, group):
@@ -20,7 +21,8 @@ class Player(pygame.sprite.Sprite):
         self.z_index = LAYERS['player']
 
         # Initialize inventory system
-        self.inventory = Inventory(size=30)
+        self.inventory = Inventory(size=36)
+        self.hotbar = Hotbar(num_slots=9)
         self._give_starter_items()  # Give starter items on creation
 
         self.max_health = 100
@@ -50,12 +52,14 @@ class Player(pygame.sprite.Sprite):
 
     def _give_starter_items(self):
         """Give player starting items - called once on initialization"""
-        self.inventory.add_item("pickaxe", 1)
-        self.inventory.add_item("hoe", 1)
-        self.inventory.add_item("watering_can", 1)
         self.inventory.add_item("potato_seed", 10)
         self.inventory.add_item("tomato_seed", 5)
         self.inventory.add_item("carrot_seed", 3)
+        
+        # Place starter tools in hotbar for convenience
+        self.hotbar.set_slot(0, {"item_id": "pickaxe", "quantity": 1})
+        self.hotbar.set_slot(1, {"item_id": "hoe", "quantity": 1})
+        self.hotbar.set_slot(2, {"item_id": "watering_can", "quantity": 1})
 
     def take_damage(self, amount):
         self.current_health = max(0, self.current_health - amount)
@@ -123,16 +127,76 @@ class Player(pygame.sprite.Sprite):
         return events
 
     def use_tool(self):
+        """Use the currently selected hotbar item"""
         target_pos = self.get_target_pos()
+        
+        # Get the item from the selected hotbar slot
+        item_id = self.hotbar.get_selected_item_id()
+        
+        if not item_id:
+            return  # No item in selected slot
+        
+        # Get item definition to check its type/category
+        item = get_item(item_id)
+        if not item:
+            return
+        
+        # Dispatch based on item type
+        if item.type == ItemType.TOOL:
+            if item_id == 'hoe':
+                self.events.append(('hoe', target_pos))
+            elif item_id == 'watering_can':
+                self.events.append(('water', target_pos))
+            elif item_id == 'pickaxe':
+                self.events.append(('pickaxe', target_pos))
+        
+        elif item.type == ItemType.SEED:
+            self.events.append(('plant', target_pos, item_id))
+        
+        elif item.type == ItemType.FOOD:
+            # For food items, etc.
+            self.use_item(item_id)
 
-        if self.selected_tool == 'hoe':
-            self.events.append(('hoe', target_pos))
-        elif self.selected_tool == 'watering_can':
-            self.events.append(('water', target_pos))
-        elif self.selected_tool == 'seed':
-            self.events.append(('plant', target_pos, self.selected_seed))
-        elif self.selected_tool == 'pickaxe':
-            self.events.append(('pickaxe', target_pos))
+    def handle_input(self):
+        if self.input_blocked:
+            return
+        keys = pygame.key.get_pressed()
+
+        if not self.timers['tool_use'].active:
+            # Movement
+            self.direction.x = 0
+            self.direction.y = 0
+
+            if keys[pygame.K_a]:
+                self.direction.x = -1
+                self.status = 'left'
+            if keys[pygame.K_d]:
+                self.direction.x = 1
+                self.status = 'right'
+            if keys[pygame.K_w]:
+                self.direction.y = -1
+                self.status = 'up'
+            if keys[pygame.K_s]:
+                self.direction.y = 1
+                self.status = 'down'
+
+            # Tool use with SPACE
+            if keys[pygame.K_SPACE]:
+                # Check if the selected hotbar item is a tool/seed
+                item_id = self.hotbar.get_selected_item_id()
+                if item_id:
+                    item = get_item(item_id)
+                    # Only activate tool timer for tools and seeds (use .type not .category)
+                    if item and item.type in [ItemType.TOOL, ItemType.SEED]:
+                        self.timers['tool_use'].activate()
+                        self.frame_index = 0
+                        self.direction = pygame.math.Vector2(0, 0)
+            
+            # Harvest (interaction key)
+            if keys[pygame.K_e] and not self.timers['harvest'].active:
+                self.timers['harvest'].activate()
+                target_pos = self.get_target_pos()
+                self.events.append(('harvest', target_pos))
 
     def get_target_pos(self):
         """Return a position slightly in front of the player (tool ray)"""
@@ -172,51 +236,6 @@ class Player(pygame.sprite.Sprite):
         if self.frame_index >= len(self.animations[self.status]):
             self.frame_index = 0
         self.image = self.animations[self.status][int(self.frame_index)]
-
-    def handle_input(self):
-        if self.input_blocked:
-            return
-        keys = pygame.key.get_pressed()
-
-        if not self.timers['tool_use'].active:
-            # Movement
-            self.direction.x = 0
-            self.direction.y = 0
-
-            if keys[pygame.K_a]:
-                self.direction.x = -1
-                self.status = 'left'
-            if keys[pygame.K_d]:
-                self.direction.x = 1
-                self.status = 'right'
-            if keys[pygame.K_w]:
-                self.direction.y = -1
-                self.status = 'up'
-            if keys[pygame.K_s]:
-                self.direction.y = 1
-                self.status = 'down'
-
-            # Tool use
-            if keys[pygame.K_SPACE]:
-                self.timers['tool_use'].activate()
-                self.frame_index = 0
-                self.direction = pygame.math.Vector2(0, 0)
-            
-            # Select tool (number keys)
-            if keys[pygame.K_1]:
-                self.selected_tool = 'hoe'
-            if keys[pygame.K_2]:
-                self.selected_tool = 'pickaxe'
-            if keys[pygame.K_3]:
-                self.selected_tool = 'watering_can'
-            if keys[pygame.K_4]:
-                self.selected_tool = 'seed'
-
-            # Harvest (interaction key)
-            if keys[pygame.K_e] and not self.timers['harvest'].active:
-                self.timers['harvest'].activate()
-                target_pos = self.get_target_pos()
-                self.events.append(('harvest', target_pos))
 
     def block_input(self):
         self.input_blocked = True

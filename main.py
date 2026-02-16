@@ -14,7 +14,7 @@ from states.ending_scene_state import EndingSceneState
 from states.credits_state import CreditsState
 
 from ui.ui_manager import UIManager
-from ui.hud import DayUI
+from ui.hud import DayUI, HotbarUI
 from ui.interaction_ui import InteractionPrompt
 from ui.inventory_ui import InventoryUI
 from player import Player
@@ -75,8 +75,11 @@ class Game:
         self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), self.all_sprites)
         
         # Create inventory UI
-        self.inventory_ui = InventoryUI(self.screen, self.player.inventory)
+        self.inventory_ui = InventoryUI(self.screen, self.player.inventory, self.player.hotbar)
         self.ui_manager.add(self.inventory_ui)
+
+        self.hotbar_ui = HotbarUI(self.screen, self.player.hotbar)
+        self.ui_manager.add(self.hotbar_ui)
         
         # Subscribe current state to day cycle if needed
         if hasattr(self.state_machine.current_state, "on_new_day"):
