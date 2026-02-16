@@ -242,14 +242,6 @@ class LevelState:
                                     text="Press E to Enter"
                                 )
                                 self.interaction_zones.add(zone)
-                
-                elif event.button == 3:  # Right click
-                    # Handle right-click on inventory (for future quick-use)
-                    clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 3)
-                    if clicked_slot is not None:
-                        slot = self.game.player.inventory.get_slot(clicked_slot)
-                        if slot:
-                            self.game.player.use_item(slot["item_id"])
 
                 # Scroll wheel up
                 elif event.button == 4:

@@ -62,24 +62,40 @@ class HotbarUI:
         self.hotbar = hotbar
         self.visible = True
         
+        # Load background image
+        self.bg_image = None
+        bg_path = "assets/ui/hotbar_bg.png"
+        if os.path.exists(bg_path):
+            try:
+                self.bg_image = pygame.image.load(bg_path).convert_alpha()
+            except Exception as e:
+                print(f"[HOTBAR] Error loading background image: {e}")
+        
         # Visual settings
         self.slot_size = 64
-        self.slot_gap = 8
+        self.slot_gap = 0
         self.hotbar_width = (self.slot_size + self.slot_gap) * self.hotbar.num_slots - self.slot_gap
         self.hotbar_height = self.slot_size + 20  # Extra space for slot numbers
         
-        # Position at bottom center of screen
-        self.padding_bottom = 20
+        # Scale background image to fit
+        if self.bg_image:
+            self.bg_image = pygame.transform.scale(
+                self.bg_image, 
+                (self.hotbar_width + 40, self.hotbar_height + 10)
+            )
         
-        # Colors
+        # Position at bottom center of screen
+        self.padding_bottom = 50
+        
+        # Colors (fallback if no image)
         self.bg_color = (40, 40, 40, 200)  # Semi-transparent dark gray
         self.slot_color = (60, 60, 60)
-        self.selected_color = (255, 200, 100)  # Orange/gold highlight
+        self.selected_color = (255, 255, 255) # Selected slot highlight
         self.border_color = (100, 100, 100)
         
         # Fonts
-        self.number_font = ui_config.get_font(16)
-        self.qty_font = ui_config.get_font(14)
+        self.number_font = ui_config.get_font(15)
+        self.qty_font = ui_config.get_font(12)
 
     def show(self):
         """Show the hotbar"""
@@ -100,11 +116,17 @@ class HotbarUI:
             return
         
         x, y = self.get_position()
+        offset_x = -20
+        offset_y = -5
         
-        # Draw background panel
-        bg_surface = pygame.Surface((self.hotbar_width, self.hotbar_height), pygame.SRCALPHA)
-        bg_surface.fill(self.bg_color)
-        self.screen.blit(bg_surface, (x, y))
+        # Draw background (image or fallback)
+        if self.bg_image:
+            self.screen.blit(self.bg_image, (x + offset_x, y + offset_y))
+        else:
+            # Fallback: semi-transparent panel
+            bg_surface = pygame.Surface((self.hotbar_width, self.hotbar_height), pygame.SRCALPHA)
+            bg_surface.fill(self.bg_color)
+            self.screen.blit(bg_surface, (x + offset_x, y + offset_y))
         
         # Draw each hotbar slot
         for i in range(self.hotbar.num_slots):
@@ -113,16 +135,19 @@ class HotbarUI:
             
             slot_rect = pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
             
-            # Draw slot background
-            pygame.draw.rect(self.screen, self.slot_color, slot_rect)
+            # Only draw slot backgrounds if no image (image has slots built-in)
+            if not self.bg_image:
+                # Draw slot background
+                pygame.draw.rect(self.screen, self.slot_color, slot_rect)
             
-            # Highlight selected slot
+            # Highlight selected slot (always draw this on top)
             if i == self.hotbar.selected_slot:
                 pygame.draw.rect(self.screen, self.selected_color, slot_rect, 3)
-            else:
+            elif not self.bg_image:
+                # Only draw borders if no background image
                 pygame.draw.rect(self.screen, self.border_color, slot_rect, 2)
             
-            # Draw slot number (1-8)
+            # Draw slot number (1-9)
             number_text = self.number_font.render(str(i + 1), True, ui_config.WHITE)
             number_rect = number_text.get_rect(centerx=slot_rect.centerx, bottom=slot_rect.top - 2)
             self.screen.blit(number_text, number_rect)
@@ -155,7 +180,7 @@ class HotbarUI:
                 try:
                     item_image = pygame.image.load(path).convert_alpha()
                     image_size = int(self.slot_size * 0.65)
-                    item_image = pygame.transform.smoothscale(item_image, (image_size, image_size))
+                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
                     break
                 except Exception as e:
                     print(f"[HOTBAR] Error loading {path}: {e}")

@@ -239,7 +239,7 @@ class GreenhouseState:
 
             # Mouse events for inventory and hotbar scrolling
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1 or event.button == 3:
+                if event.button == 1: # Left click
                     # Inventory mouse handling
                     self.game.inventory_ui.handle_mouse_down(
                         pygame.mouse.get_pos(), event.button

@@ -13,12 +13,22 @@ class InventoryUI:
         # Load background image
         self.bg_image = ui_config.get_image('inventory_bg')
         self.bg_image = pygame.transform.scale(self.bg_image, (600, 600)) if self.bg_image else None
+
+        # Load hotbar background image
+        self.hotbar_bg_image = None
+        hotbar_bg_path = "assets/ui/hotbar_bg.png"
+        if os.path.exists(hotbar_bg_path):
+            try:
+                self.hotbar_bg_image = pygame.image.load(hotbar_bg_path).convert_alpha()
+            except Exception as e:
+                print(f"[INVENTORY] Error loading hotbar background: {e}")
         
         self.panel_width = 600
         self.panel_height = 600
 
         self.slot_size = 64
         self.slot_gap = 13
+        self.hotbar_slot_gap = 20
 
         self.grid_start_x = 75
         self.grid_start_y = 75
@@ -43,7 +53,16 @@ class InventoryUI:
         self.tooltip_slot = None
         
         # Add hotbar slot rendering (MUST be after grid_start_y and rows are defined)
-        self.hotbar_start_y = self.grid_start_y + self.rows * (self.slot_size + self.slot_gap) + 30
+        self.hotbar_start_y = self.grid_start_y + self.rows * (self.slot_size + self.slot_gap) + 100
+
+        # Scale hotbar background to fit
+        if self.hotbar_bg_image:
+            hotbar_width = self.hotbar.num_slots * (self.slot_size + self.hotbar_slot_gap) - self.hotbar_slot_gap
+            hotbar_height = self.slot_size
+            self.hotbar_bg_image = pygame.transform.scale(
+                self.hotbar_bg_image, 
+                (hotbar_width, hotbar_height + 30)
+            )
 
     def get_hotbar_slot_rect(self, slot_index):
         """Get the rect for a hotbar slot in the inventory screen"""
@@ -394,24 +413,23 @@ class InventoryUI:
                 rect = self.get_slot_rect(i)
                 self.draw_item_in_slot(slot, rect)
         
-        # Draw hotbar section label
-        panel_x = (self.screen.get_width() - self.panel_width) // 2
-        panel_y = (self.screen.get_height() - self.panel_height) // 2
-        
-        hotbar_label = self.title_font.render("HOTBAR", True, ui_config.LIGHT_ORANGE)
-        hotbar_label_rect = hotbar_label.get_rect(
-            centerx=panel_x + self.panel_width // 2,
-            bottom=panel_y + self.hotbar_start_y - 10
-        )
-        self.screen.blit(hotbar_label, hotbar_label_rect)
+        # Draw hotbar background image
+        offset_x = -5
+        offset_y = -10
+        if self.hotbar_bg_image:
+            hotbar_bg_x = panel_x + (self.panel_width - self.hotbar_bg_image.get_width()) // 2 + offset_x
+            hotbar_bg_y = panel_y + self.hotbar_start_y - 5 + offset_y
+            self.screen.blit(self.hotbar_bg_image, (hotbar_bg_x , hotbar_bg_y))
         
         # Draw hotbar slots
         for i in range(self.hotbar.num_slots):
             rect = self.get_hotbar_slot_rect(i)
             
-            # Draw slot background
-            pygame.draw.rect(self.screen, (60, 60, 60), rect)
-            pygame.draw.rect(self.screen, (100, 100, 100), rect, 2)
+            # Only draw slot backgrounds if no background image
+            if not self.hotbar_bg_image:
+                # Draw slot background
+                pygame.draw.rect(self.screen, (60, 60, 60), rect)
+                pygame.draw.rect(self.screen, (100, 100, 100), rect, 2)
             
             # Skip the dragged slot
             if self.dragging and self.dragged_slot == ('hotbar', i):
@@ -465,8 +483,8 @@ class InventoryUI:
                 try:
                     item_image = pygame.image.load(path).convert_alpha()
                     # Scale to fit slot (leave some padding)
-                    image_size = int(self.slot_size * 0.7)  # 70% of slot size
-                    item_image = pygame.transform.smoothscale(item_image, (image_size, image_size))
+                    image_size = int(self.slot_size * 0.6)  # 60% of slot size
+                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
                     break
                 except Exception as e:
                     print(f"[INVENTORY] Error loading {path}: {e}")
