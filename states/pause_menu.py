@@ -34,11 +34,10 @@ class PauseMenuState:
         # Block player input
         if self.game.player:
             self.game.player.block_input()
-        
-        # Don't hide game UI - we want to see it behind the overlay
-        # But make sure inventory is closed
         if self.game.inventory_ui:
             self.game.inventory_ui.hide()
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.hide()
         
         # Reset confirmation dialogs
         self.showing_quit_confirm = False
@@ -207,6 +206,8 @@ class PauseMenuState:
         # Unblock player input
         if self.game.player:
             self.game.player.unblock_input()
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.show()
         self.state_machine.change_state("level")
     
     def open_settings(self):

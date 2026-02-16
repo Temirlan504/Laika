@@ -25,6 +25,8 @@ class MainMenuState:
         self.game.interaction_prompt.visible = False
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.hide()
         
         # Recreate buttons to update continue button state
         self.create_buttons()

@@ -113,8 +113,11 @@ class LevelState:
         # Show game UI elements
         self.game.day_ui.visible = True
         self.game.interaction_prompt.visible = False  # Start hidden, shown when near interaction
+
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False  # Start hidden, opened with TAB
+        if self.game.hotbar_ui:
+            self.game.hotbar_ui.visible = True  # Hotbar is visible by default
         
         # Unblock player input when entering level
         self.game.player.unblock_input()
@@ -130,12 +133,17 @@ class LevelState:
                 if event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
                         self.game.inventory_ui.hide()
+                        self.game.hotbar_ui.show()
                     else:
                         self.state_machine.change_state("pause_menu")
 
                 # Toggle inventory (handled in state instead of main.py)
                 elif event.key == pygame.K_TAB:
                     self.game.inventory_ui.toggle()
+                    if self.game.inventory_ui.visible:
+                        self.game.hotbar_ui.hide()
+                    else:
+                        self.game.hotbar_ui.show()
 
                 # Interaction key
                 elif event.key == pygame.K_e:

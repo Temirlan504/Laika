@@ -80,6 +80,14 @@ class HotbarUI:
         # Fonts
         self.number_font = ui_config.get_font(16)
         self.qty_font = ui_config.get_font(14)
+
+    def show(self):
+        """Show the hotbar"""
+        self.visible = True
+    
+    def hide(self):
+        """Hide the hotbar"""
+        self.visible = False
     
     def get_position(self):
         """Calculate hotbar position (bottom center)"""
