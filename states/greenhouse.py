@@ -82,6 +82,15 @@ class GreenhouseState:
         self.center_camera()
         
         self.game.interaction_prompt.hide()
+        
+        # Show hotbar in greenhouse (you can use tools here)
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.show()
+    
+    def on_exit(self):
+        """Called when leaving the greenhouse"""
+        # Hotbar will be shown again by level state's on_enter
+        pass
 
     def open_chest(self):
         if self.chest_ui or self.near_chest_index is None:
@@ -96,6 +105,10 @@ class GreenhouseState:
             self.game.player.inventory,
             chest.inventory
         )
+        
+        # Hide hotbar when chest is open
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.hide()
 
     def save_soil_state(self):
         soil_data = {}
@@ -178,6 +191,10 @@ class GreenhouseState:
                     self.chest_ui.close()
                     self.chest_ui = None
                     self.active_chest = None
+                    
+                    # Show hotbar again when closing chest
+                    if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+                        self.game.hotbar_ui.show()
                     return
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -196,6 +213,13 @@ class GreenhouseState:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_TAB:
                     self.game.inventory_ui.toggle()
+                    # Toggle hotbar visibility opposite to inventory
+                    if self.game.inventory_ui.visible:
+                        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+                            self.game.hotbar_ui.hide()
+                    else:
+                        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+                            self.game.hotbar_ui.show()
 
                 elif event.key == pygame.K_e and self.near_chest:
                     self.open_chest()
@@ -203,20 +227,64 @@ class GreenhouseState:
                 elif event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
                         self.game.inventory_ui.hide()
+                        # Show hotbar when closing inventory
+                        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+                            self.game.hotbar_ui.show()
                     return
+                
+                # Hotbar number keys (1-9)
+                elif pygame.K_1 <= event.key <= pygame.K_9:
+                    slot_index = event.key - pygame.K_1  # Convert key to 0-8
+                    self.game.player.hotbar.select_slot(slot_index)
 
-            # Inventory mouse handling ONLY when chest is closed
+            # Mouse events for inventory and hotbar scrolling
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button in (1, 3):
+                if event.button == 1 or event.button == 3:
+                    # Inventory mouse handling
                     self.game.inventory_ui.handle_mouse_down(
                         pygame.mouse.get_pos(), event.button
                     )
+                
+                # Scroll wheel up
+                elif event.button == 4:
+                    self.game.player.hotbar.select_previous()
+                
+                # Scroll wheel down
+                elif event.button == 5:
+                    self.game.player.hotbar.select_next()
 
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
-                    self.game.inventory_ui.handle_mouse_up(
+                    result = self.game.inventory_ui.handle_mouse_up(
                         pygame.mouse.get_pos(), 1
                     )
+                    if result:
+                        from_info, to_info, action_type = result
+                        
+                        if action_type == 'swap':
+                            # Handle swapping between inventory and hotbar
+                            from_type, from_index = from_info
+                            to_type, to_index = to_info
+                            
+                            # Get slot data based on storage type
+                            if from_type == 'inventory':
+                                from_data = self.game.player.inventory.get_slot(from_index)
+                            else:  # hotbar
+                                from_data = self.game.player.hotbar.get_slot(from_index)
+                            
+                            if to_type == 'inventory':
+                                to_data = self.game.player.inventory.get_slot(to_index)
+                            else:  # hotbar
+                                to_data = self.game.player.hotbar.get_slot(to_index)
+                            
+                            # If both slots have the same item, try to stack
+                            if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
+                                if not self.game.inventory_ui.stack_items(from_info, to_info):
+                                    # If stacking failed (full), swap instead
+                                    self.game.inventory_ui.swap_slots(from_info, to_info)
+                            else:
+                                # Different items or one empty - just swap
+                                self.game.inventory_ui.swap_slots(from_info, to_info)
             
             # Exit greenhouse
             if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
@@ -233,7 +301,7 @@ class GreenhouseState:
         if self.game.inventory_ui:
             self.game.inventory_ui.update()
 
-        # Block player input when inventory is open
+        # Block player input when inventory or chest is open
         if self.game.inventory_ui.visible or (self.chest_ui and self.chest_ui.visible):
             self.game.player.block_input()
         else:
@@ -295,3 +363,7 @@ class GreenhouseState:
 
         if self.chest_ui and self.chest_ui.visible:
             self.chest_ui.draw()
+        
+        # Draw hotbar (if visible and not in chest UI)
+        if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
+            self.game.hotbar_ui.draw()
