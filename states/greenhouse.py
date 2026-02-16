@@ -71,6 +71,9 @@ class GreenhouseState:
                 soil.plant = saved['plant']
                 soil.update_visual()
 
+                if soil.plant and not soil.plant.is_fully_grown and soil.state == "watered":
+                    soil.plant.start_growth_timer()
+
         # Spawn player inside greenhouse
         if self.map_loader.player_spawnpoint:
             self.game.player.rect.center = self.map_loader.player_spawnpoint
@@ -317,9 +320,12 @@ class GreenhouseState:
             pos = event_data[1]
             
             # For planting, pass the seed_id
-            if event_type == 'plant' and len(event_data) > 2:
-                seed_id = event_data[2]
-                self.soil_layer.handle_event(event_type, pos, seed_id)
+            if event_type == 'plant':
+                if len(event_data) > 2:
+                    seed_id = event_data[2]
+                    self.soil_layer.handle_event(event_type, pos, seed_id)
+                else:
+                    print(f"[ERROR] Plant event missing seed_id! event_data: {event_data}")
             else:
                 self.soil_layer.handle_event(event_type, pos)
 

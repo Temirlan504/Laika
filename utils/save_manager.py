@@ -181,8 +181,7 @@ class SaveManager:
                 if plant is not None:
                     plant_data = {
                         'plant_type': plant.plant_type,
-                        'growth_stage': plant.growth_stage,
-                        'days_grown': plant.days_grown
+                        'growth_stage': plant.growth_stage
                     }
                 
                 # Soil data matches what greenhouse.py expects:
@@ -201,7 +200,7 @@ class SaveManager:
             
             greenhouses[greenhouse_id] = {
                 'soil': soil_data,
-                'chests': chests_data  # Use 'chests' plural to match greenhouse.py
+                'chests': chests_data
             }
         
         return greenhouses
@@ -309,7 +308,6 @@ class SaveManager:
                 if plant_data is not None:
                     plant = Plant(plant_data['plant_type'])
                     plant.growth_stage = plant_data.get('growth_stage', 0)
-                    plant.days_grown = plant_data.get('days_grown', 0)
                 
                 # Greenhouse.py expects {'state': ..., 'plant': ...}
                 game.greenhouse_data[greenhouse_id]['soil'][actual_key] = {

@@ -15,9 +15,9 @@ class SoilTile(pygame.sprite.Sprite):
         self.state = "dry"
         self.plant = None
         self.tile_pos = (rect.x // TILE_SIZE, rect.y // TILE_SIZE)
-
-        # Timer for plant growth (in milliseconds)
-        self.growth_timer = Timer(1500, self.advance_plant)
+        
+        # Timer for plant growth
+        self.growth_timer = None
 
     def hoe(self):
         if self.state == "dry":
@@ -32,12 +32,15 @@ class SoilTile(pygame.sprite.Sprite):
             self.update_visual()
 
     def plant_seed(self, player, seed_id):
-        """Plant a seed from player's inventory"""
+        """Plant a seed from player's inventory OR hotbar"""
         if self.state != "watered" or self.plant is not None:
             return False
         
-        # Check if player has the seed
-        if not player.has_item(seed_id, 1):
+        # Check if player has the seed in inventory OR hotbar
+        has_in_inventory = player.inventory.has_item(seed_id, 1)
+        has_in_hotbar = player.hotbar.has_item(seed_id, 1)
+        
+        if not has_in_inventory and not has_in_hotbar:
             print(f"You don't have any {seed_id}")
             return False
         
@@ -47,25 +50,65 @@ class SoilTile(pygame.sprite.Sprite):
             print(f"Invalid seed: {seed_id}")
             return False
         
-        # Remove seed from inventory
-        if player.remove_item(seed_id, 1):
+        # Try to remove from hotbar first, then inventory
+        removed = False
+        if has_in_hotbar:
+            removed = player.hotbar.remove_item(seed_id, 1)
+        
+        if not removed and has_in_inventory:
+            removed = player.inventory.remove_item(seed_id, 1)
+        
+        if removed:
             # Plant it
             self.plant = Plant(seed_def.plant_type)
             self.update_visual()
-            self.growth_timer.activate()
+            
+            # Start growth timer (plant owns the timer now)
+            self.plant.start_growth_timer()
+            
             print(f"Planted {seed_def.name}")
             return True
         
         return False
 
-    def advance_plant(self):
+    def grow_to_final(self):
+        """Instantly grow plant to final stage (called when sleeping)"""
+        if self.plant:
+            self.plant.grow_to_final()
+            self.update_visual()
+
+    def update(self):
+        """Update growth timer"""
+        if self.plant:
+            self.plant.update()
+
+    def start_growth_timer(self):
+        """Start the timer for the next growth stage"""
+        if self.plant and not self.plant.is_fully_grown and self.state == "watered":
+            # Create timer for next stage
+            self.growth_timer = Timer(self.plant.ms_per_stage, self.on_growth_stage_complete)
+            self.growth_timer.activate()
+
+    def on_growth_stage_complete(self):
+        """Called when a growth stage timer completes"""
         if self.plant and self.state == "watered":
             self.plant.grow()
             self.update_visual()
-
-            # continue growing until fully grown
+            
+            # Start timer for next stage if not fully grown
             if not self.plant.is_fully_grown:
-                self.growth_timer.activate()
+                self.start_growth_timer()
+
+    def grow_to_final(self):
+        """Instantly grow plant to final stage (called when sleeping)"""
+        if self.plant:
+            self.plant.grow_to_final()
+            self.update_visual()
+            
+            # Cancel any active growth timer
+            if self.growth_timer:
+                self.growth_timer.deactivate()
+                self.growth_timer = None
 
     def is_harvestable(self):
         return self.plant is not None and self.plant.is_fully_grown
@@ -86,8 +129,10 @@ class SoilTile(pygame.sprite.Sprite):
 
         # Reset soil
         self.plant = None
+        if self.growth_timer:
+            self.growth_timer.deactivate()
+            self.growth_timer = None
         self.state = "dry"
-        self.growth_timer.deactivate()
         self.update_visual()
 
         print(f"Harvested {crop_amount}x {crop_name} + 1 seed")
@@ -115,7 +160,9 @@ class SoilTile(pygame.sprite.Sprite):
                 pygame.draw.circle(self.image, (0, 150, 0), center, 10)
 
     def update(self):
-        self.growth_timer.update()
+        """Update growth timer"""
+        if self.growth_timer:
+            self.growth_timer.update()
 
 
 class SoilLayer:

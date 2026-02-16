@@ -569,6 +569,13 @@ class LevelState:
             # Update inventory UI hover state
             if self.game.inventory_ui:
                 self.game.inventory_ui.update()
+
+            # Update all plant growth timers (even when outside greenhouse)
+            for greenhouse_data in self.game.greenhouse_data.values():
+                for soil_data in greenhouse_data.get('soil', {}).values():
+                    plant = soil_data.get('plant')
+                    if plant:
+                        plant.update()  # Update plant's growth timer
             
             # Meteor spawning
             self.meteor_spawn_timer.update()

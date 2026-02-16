@@ -133,13 +133,18 @@ class Player(pygame.sprite.Sprite):
         # Get the item from the selected hotbar slot
         item_id = self.hotbar.get_selected_item_id()
         
+        print(f"[PLAYER] use_tool() - item_id: {item_id}")  # DEBUG
+        
         if not item_id:
             return  # No item in selected slot
         
         # Get item definition to check its type/category
         item = get_item(item_id)
         if not item:
+            print(f"[PLAYER] Item not found in database: {item_id}")  # DEBUG
             return
+        
+        print(f"[PLAYER] Item type: {item.type}")  # DEBUG
         
         # Dispatch based on item type
         if item.type == ItemType.TOOL:
@@ -151,6 +156,7 @@ class Player(pygame.sprite.Sprite):
                 self.events.append(('pickaxe', target_pos))
         
         elif item.type == ItemType.SEED:
+            print(f"[PLAYER] Planting seed: {item_id}, target: {target_pos}")  # DEBUG
             self.events.append(('plant', target_pos, item_id))
         
         elif item.type == ItemType.FOOD:
