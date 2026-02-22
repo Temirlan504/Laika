@@ -34,7 +34,8 @@ class LevelState:
 
         self.LAST_SOL = 10
 
-        self.debug_mode = True
+        # --- DEBUG MODE ---
+        self.debug_mode = False
         self.debug_timer = 0
         
         # Load Tiled map

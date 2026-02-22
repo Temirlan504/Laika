@@ -1,7 +1,7 @@
 from utils.timer import Timer
 
 class Plant:
-    def __init__(self, plant_type):
+    def __init__(self, plant_type, on_visual_change=None):
         self.plant_type = plant_type
 
         # Growth stages
@@ -21,6 +21,9 @@ class Plant:
         
         # Plant owns its own growth timer
         self.growth_timer = None
+        
+        # Callback to notify when visual should update
+        self.on_visual_change = on_visual_change
 
     def start_growth_timer(self):
         """Start the timer for the next growth stage"""
@@ -31,6 +34,10 @@ class Plant:
     def on_growth_complete(self):
         """Called when a growth stage completes"""
         self.grow()
+        
+        # Notify that visual should update
+        if self.on_visual_change:
+            self.on_visual_change()
         
         # Start next stage if not fully grown
         if not self.is_fully_grown:
@@ -50,6 +57,10 @@ class Plant:
         if self.growth_timer:
             self.growth_timer.deactivate()
             self.growth_timer = None
+        
+        # Notify visual update
+        if self.on_visual_change:
+            self.on_visual_change()
 
     def update(self):
         """Update the growth timer"""

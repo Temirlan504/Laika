@@ -60,7 +60,7 @@ class SoilTile(pygame.sprite.Sprite):
         
         if removed:
             # Plant it
-            self.plant = Plant(seed_def.plant_type)
+            self.plant = Plant(seed_def.plant_type, on_visual_change=self.update_visual)
             self.update_visual()
             
             # Start growth timer (plant owns the timer now)
@@ -158,11 +158,6 @@ class SoilTile(pygame.sprite.Sprite):
                 pygame.draw.circle(self.image, (0, 180, 0), center, 6)
             elif self.plant.growth_stage == 3:
                 pygame.draw.circle(self.image, (0, 150, 0), center, 10)
-
-    def update(self):
-        """Update growth timer"""
-        if self.growth_timer:
-            self.growth_timer.update()
 
 
 class SoilLayer:

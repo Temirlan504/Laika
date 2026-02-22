@@ -69,6 +69,9 @@ class GreenhouseState:
                 saved = soil_data[key]
                 soil.state = saved['state']
                 soil.plant = saved['plant']
+
+                if soil.plant:
+                    soil.plant.on_visual_change = soil.update_visual
                 soil.update_visual()
 
                 if soil.plant and not soil.plant.is_fully_grown and soil.state == "watered":
