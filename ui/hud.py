@@ -226,3 +226,168 @@ class HotbarUI:
             # Draw shadow for better visibility
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
+
+
+class HealthBarUI(UIElement):
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player = player
+        self.screen = screen
+        self.visible = True
+        
+        # Bar dimensions
+        self.bar_width = 200
+        self.bar_height = 30
+        self.padding = 5
+        
+        # Colors
+        self.bg_color = (40, 40, 40)
+        self.bar_color = (220, 50, 50)  # Red
+        self.border_color = (100, 100, 100)
+        
+        # Font
+        self.font = ui_config.get_font(12)
+
+    def show(self):
+        self.visible = True
+    
+    def hide(self):
+        self.visible = False
+    
+    def draw(self):
+        if not self.visible:
+            return
+        
+        # Position below day/time UI (top-right)
+        x = self.screen.get_width() - self.bar_width - 20
+        y = 130
+        
+        # Draw background
+        bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
+        pygame.draw.rect(self.screen, self.bg_color, bg_rect)
+        
+        # Draw health bar (fill based on current health)
+        health_percent = self.player.current_health / self.player.max_health
+        fill_width = int((self.bar_width - self.padding * 2) * health_percent)
+        fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
+                                fill_width, self.bar_height - self.padding * 2)
+        pygame.draw.rect(self.screen, self.bar_color, fill_rect)
+        
+        # Draw border
+        pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
+        
+        # Draw text (HP: 100/100)
+        text = f"HP: {int(self.player.current_health)}/{int(self.player.max_health)}"
+        text_surface = self.font.render(text, True, ui_config.WHITE)
+        text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
+        self.screen.blit(text_surface, text_rect)
+
+
+class OxygenBarUI(UIElement):
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player = player
+        self.screen = screen
+        self.visible = True
+        
+        # Bar dimensions
+        self.bar_width = 200
+        self.bar_height = 30
+        self.padding = 5
+        
+        # Colors
+        self.bg_color = (40, 40, 40)
+        self.bar_color = (50, 150, 220)  # Blue
+        self.border_color = (100, 100, 100)
+        
+        # Font
+        self.font = ui_config.get_font(12)
+
+    def show(self):
+        self.visible = True
+    
+    def hide(self):
+        self.visible = False
+    
+    def draw(self):
+        if not self.visible:
+            return
+        
+        # Position below health bar
+        x = self.screen.get_width() - self.bar_width - 20
+        y = 170
+        
+        # Draw background
+        bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
+        pygame.draw.rect(self.screen, self.bg_color, bg_rect)
+        
+        # Draw oxygen bar (fill based on current oxygen)
+        oxygen_percent = self.player.current_oxygen / self.player.max_oxygen
+        fill_width = int((self.bar_width - self.padding * 2) * oxygen_percent)
+        fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
+                                fill_width, self.bar_height - self.padding * 2)
+        pygame.draw.rect(self.screen, self.bar_color, fill_rect)
+        
+        # Draw border
+        pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
+        
+        # Draw text (O2: 100/100)
+        text = f"O2: {int(self.player.current_oxygen)}/{int(self.player.max_oxygen)}"
+        text_surface = self.font.render(text, True, ui_config.WHITE)
+        text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
+        self.screen.blit(text_surface, text_rect)
+
+
+class HungerBarUI(UIElement):
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player = player
+        self.screen = screen
+        self.visible = True
+        
+        # Bar dimensions
+        self.bar_width = 200
+        self.bar_height = 30
+        self.padding = 5
+        
+        # Colors
+        self.bg_color = (40, 40, 40)
+        self.bar_color = (220, 180, 50)  # Yellow/Orange
+        self.border_color = (100, 100, 100)
+        
+        # Font
+        self.font = ui_config.get_font(12)
+
+    def show(self):
+        self.visible = True
+    
+    def hide(self):
+        self.visible = False
+    
+    def draw(self):
+        if not self.visible:
+            return
+        
+        # Position below oxygen bar
+        x = self.screen.get_width() - self.bar_width - 20
+        y = 210
+        
+        # Draw background
+        bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
+        pygame.draw.rect(self.screen, self.bg_color, bg_rect)
+        
+        # Draw hunger bar (fill based on current hunger)
+        hunger_percent = self.player.current_hunger / self.player.max_hunger
+        fill_width = int((self.bar_width - self.padding * 2) * hunger_percent)
+        fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
+                                fill_width, self.bar_height - self.padding * 2)
+        pygame.draw.rect(self.screen, self.bar_color, fill_rect)
+        
+        # Draw border
+        pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
+        
+        # Draw text (Hunger: 100/100)
+        text = f"Hunger: {int(self.player.current_hunger)}/{int(self.player.max_hunger)}"
+        text_surface = self.font.render(text, True, ui_config.WHITE)
+        text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
+        self.screen.blit(text_surface, text_rect)

@@ -27,9 +27,21 @@ class MainMenuState:
             self.game.inventory_ui.visible = False
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.hide()
+        if hasattr(self.game, 'health_bar_ui') and self.game.health_bar_ui:
+            self.game.health_bar_ui.hide()
+        if hasattr(self.game, 'oxygen_bar_ui') and self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.hide()
+        if hasattr(self.game, 'hunger_bar_ui') and self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.hide()
         
         # Recreate buttons to update continue button state
         self.create_buttons()
+
+        # Resize background to fit current screen size
+        self.background = pygame.transform.scale(
+            self.background_original,
+            (self.screen.get_width(), self.screen.get_height())
+        )
     
     def load_fonts(self):
         """Load Press Start 2P font or fallback"""
