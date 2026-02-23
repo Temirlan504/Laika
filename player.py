@@ -133,18 +133,13 @@ class Player(pygame.sprite.Sprite):
         # Get the item from the selected hotbar slot
         item_id = self.hotbar.get_selected_item_id()
         
-        print(f"[PLAYER] use_tool() - item_id: {item_id}")  # DEBUG
-        
         if not item_id:
             return  # No item in selected slot
         
         # Get item definition to check its type/category
         item = get_item(item_id)
         if not item:
-            print(f"[PLAYER] Item not found in database: {item_id}")  # DEBUG
             return
-        
-        print(f"[PLAYER] Item type: {item.type}")  # DEBUG
         
         # Dispatch based on item type
         if item.type == ItemType.TOOL:
@@ -156,12 +151,29 @@ class Player(pygame.sprite.Sprite):
                 self.events.append(('pickaxe', target_pos))
         
         elif item.type == ItemType.SEED:
-            print(f"[PLAYER] Planting seed: {item_id}, target: {target_pos}")  # DEBUG
             self.events.append(('plant', target_pos, item_id))
         
         elif item.type == ItemType.FOOD:
-            # For food items, etc.
-            self.use_item(item_id)
+            # Eat food directly from hotbar
+            self.eat_food(item_id)
+
+    def eat_food(self, item_id):
+        """Eat food from hotbar"""
+        item_def = get_item(item_id)
+        if not item_def:
+            return False
+        
+        # Try to remove from hotbar first
+        if self.hotbar.remove_item(item_id, 1):
+            # Restore hunger and health
+            if hasattr(item_def, 'hunger_restore'):
+                self.restore_hunger(item_def.hunger_restore)
+            if hasattr(item_def, 'health_restore'):
+                self.heal(item_def.health_restore)
+            print(f"[PLAYER] Ate {item_def.name}")
+            return True
+        
+        return False
 
     def handle_input(self):
         if self.input_blocked:
@@ -188,12 +200,12 @@ class Player(pygame.sprite.Sprite):
 
             # Tool use with SPACE
             if keys[pygame.K_SPACE]:
-                # Check if the selected hotbar item is a tool/seed
+                # Check if the selected hotbar item is a tool/seed/food
                 item_id = self.hotbar.get_selected_item_id()
                 if item_id:
                     item = get_item(item_id)
-                    # Only activate tool timer for tools and seeds (use .type not .category)
-                    if item and item.type in [ItemType.TOOL, ItemType.SEED]:
+                    # Activate tool timer for tools, seeds, and food
+                    if item and item.type in [ItemType.TOOL, ItemType.SEED, ItemType.FOOD]:
                         self.timers['tool_use'].activate()
                         self.frame_index = 0
                         self.direction = pygame.math.Vector2(0, 0)

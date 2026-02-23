@@ -11,7 +11,7 @@ class ItemType:
     MATERIAL = "material"
 
 class Item:
-    def __init__(self, item_id, name, item_type, max_stack=99, description="", **kwargs):
+    def __init__(self, item_id, name, item_type, max_stack=64, description="", **kwargs):
         self.id = item_id
         self.name = name
         self.type = item_type
@@ -29,7 +29,7 @@ ITEMS = {
         "iron_ore",
         "Iron Ore",
         ItemType.RESOURCE,
-        max_stack=99,
+        max_stack=64,
         description="Raw iron ore from meteorites"
     ),
     
@@ -38,7 +38,7 @@ ITEMS = {
         "potato_seed",
         "Potato Seed",
         ItemType.SEED,
-        max_stack=99,
+        max_stack=64,
         description="Plant these in tilled soil",
         plant_type="potato"
     ),
@@ -46,7 +46,7 @@ ITEMS = {
         "tomato_seed",
         "Tomato Seed",
         ItemType.SEED,
-        max_stack=99,
+        max_stack=64,
         description="Plant these in tilled soil",
         plant_type="tomato"
     ),
@@ -54,7 +54,7 @@ ITEMS = {
         "carrot_seed",
         "Carrot Seed",
         ItemType.SEED,
-        max_stack=99,
+        max_stack=64,
         description="Plant these in tilled soil",
         plant_type="carrot"
     ),
@@ -64,7 +64,7 @@ ITEMS = {
         "potato",
         "Potato",
         ItemType.FOOD,
-        max_stack=99,
+        max_stack=64,
         description="Restores hunger",
         hunger_restore=20,
         health_restore=5
@@ -73,7 +73,7 @@ ITEMS = {
         "tomato",
         "Tomato",
         ItemType.FOOD,
-        max_stack=99,
+        max_stack=64,
         description="Restores hunger",
         hunger_restore=15,
         health_restore=3
@@ -82,7 +82,7 @@ ITEMS = {
         "carrot",
         "Carrot",
         ItemType.FOOD,
-        max_stack=99,
+        max_stack=64,
         description="Restores hunger",
         hunger_restore=10,
         health_restore=2

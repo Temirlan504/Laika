@@ -1,15 +1,19 @@
 import random
 import pygame
 from sprites import GreenhouseDome, Meteorite
+
 from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
+from utils.timer import Timer
+
 from camera import CameraGroup
 from building.preview import DomePreview
+from building.door import DoorInteractionZone
+
 from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
-from building.door import DoorInteractionZone
-from utils.timer import Timer
+from systems.hunger_system import HungerSystem
 
 class LevelState:
     def __init__(self, state_machine, game):
@@ -28,11 +32,11 @@ class LevelState:
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
-        self.max_meteorites = 50
+        self.max_meteorites = 30
         self.meteor_spawn_timer = Timer(10000)  # Try to spawn a meteor every 10 seconds
         self.meteor_spawn_timer.activate()
 
-        self.LAST_SOL = 10
+        self.LAST_SOL = 300
 
         # --- DEBUG MODE ---
         self.debug_mode = False
@@ -57,8 +61,9 @@ class LevelState:
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         self.preview = DomePreview(dome_image)
 
-        # Oxygen system
+        # Player stats
         self.oxygen_system = OxygenSystem()
+        self.hunger_system = HungerSystem()
 
         self.setup_level()
 
@@ -593,6 +598,7 @@ class LevelState:
             
             self.check_collisions(dt)
             self.oxygen_system.update(self.game.player, dt)
+            self.hunger_system.update(self.game.player, dt)
 
             self.handle_tool_events()
         elif dt == 0:
