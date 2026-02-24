@@ -1,4 +1,5 @@
 import pygame
+import os
 import random
 from utils.settings import LAYERS, TILE_SIZE
 from greenhouse.plant import Plant
@@ -18,6 +19,9 @@ class SoilTile(pygame.sprite.Sprite):
         
         # Timer for plant growth
         self.growth_timer = None
+
+        # Cache for loaded plant sprites
+        self.plant_sprite_cache = {}
 
     def hoe(self):
         if self.state == "dry":
@@ -70,6 +74,31 @@ class SoilTile(pygame.sprite.Sprite):
             return True
         
         return False
+
+    def load_plant_sprite(self, plant_type, stage):
+        """Load a plant sprite image for a specific growth stage"""
+        # Check cache first
+        cache_key = (plant_type, stage)
+        if cache_key in self.plant_sprite_cache:
+            return self.plant_sprite_cache[cache_key]
+        
+        # Try to load from file
+        sprite_path = f"assets/items/crop_stages/{plant_type}/{stage}.png"
+        
+        if os.path.exists(sprite_path):
+            try:
+                sprite = pygame.image.load(sprite_path).convert_alpha()
+                # Scale to fit tile size (80% of tile size for some padding)
+                target_size = int(TILE_SIZE * 0.5)
+                sprite = pygame.transform.scale(sprite, (target_size, target_size))
+                self.plant_sprite_cache[cache_key] = sprite
+                return sprite
+            except Exception as e:
+                print(f"[SOIL] Error loading plant sprite {sprite_path}: {e}")
+                return None
+        
+        return None
+
 
     def grow_to_final(self):
         """Instantly grow plant to final stage (called when sleeping)"""
@@ -148,16 +177,23 @@ class SoilTile(pygame.sprite.Sprite):
 
         # Plant visual
         if self.plant:
-            center = self.image.get_rect().center
-
-            if self.plant.growth_stage == 0:
-                self.image.set_at(center, (0, 255, 0))  # seed
-            elif self.plant.growth_stage == 1:
-                pygame.draw.circle(self.image, (0, 200, 0), center, 2)
-            elif self.plant.growth_stage == 2:
-                pygame.draw.circle(self.image, (0, 180, 0), center, 6)
-            elif self.plant.growth_stage == 3:
-                pygame.draw.circle(self.image, (0, 150, 0), center, 10)
+            plant_sprite = self.load_plant_sprite(self.plant.plant_type, self.plant.growth_stage)
+            
+            if plant_sprite:
+                # Center the sprite in the tile
+                sprite_rect = plant_sprite.get_rect(center=self.image.get_rect().center)
+                self.image.blit(plant_sprite, sprite_rect)
+            else:
+                # Fallback to colored circles if sprite not found
+                center = self.image.get_rect().center
+                if self.plant.growth_stage == 0:
+                    self.image.set_at(center, (0, 255, 0))  # seed
+                elif self.plant.growth_stage == 1:
+                    pygame.draw.circle(self.image, (0, 200, 0), center, 2)
+                elif self.plant.growth_stage == 2:
+                    pygame.draw.circle(self.image, (0, 180, 0), center, 6)
+                elif self.plant.growth_stage == 3:
+                    pygame.draw.circle(self.image, (0, 150, 0), center, 10)
 
 
 class SoilLayer:
