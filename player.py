@@ -159,6 +159,11 @@ class Player(pygame.sprite.Sprite):
 
     def eat_food(self, item_id):
         """Eat food from hotbar"""
+        # Check if hunger is already full
+        if self.current_hunger >= self.max_hunger:
+            print(f"[PLAYER] You're not hungry!")
+            return False
+        
         item_def = get_item(item_id)
         if not item_def:
             return False
@@ -170,7 +175,7 @@ class Player(pygame.sprite.Sprite):
                 self.restore_hunger(item_def.hunger_restore)
             if hasattr(item_def, 'health_restore'):
                 self.heal(item_def.health_restore)
-            print(f"[PLAYER] Ate {item_def.name}")
+            print(f"[PLAYER] Ate {item_def.name} (+{item_def.hunger_restore} hunger)")
             return True
         
         return False

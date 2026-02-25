@@ -1,10 +1,14 @@
 import pygame
-from utils.settings import *
 from camera import CameraGroup
+
+from utils.settings import *
 from utils.map_loader import MapLoader
+
 from greenhouse.soil import SoilLayer
 from greenhouse.chest import Chest
 from greenhouse.chest_ui import ChestUI
+
+from systems.hunger_system import HungerSystem
 
 class GreenhouseState:
     def __init__(self, state_machine, game):
@@ -19,6 +23,8 @@ class GreenhouseState:
         self.chest_ui = None
         self.near_chest = False
         self.near_chest_index = None
+
+        self.hunger_system = HungerSystem()
 
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
@@ -334,6 +340,7 @@ class GreenhouseState:
 
         # Refill oxygen
         self.refill_oxygen(dt)
+        self.hunger_system.update(self.game.player, dt)
 
         # Update soil tiles
         self.soil_sprites.update()
