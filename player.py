@@ -38,9 +38,10 @@ class Player(pygame.sprite.Sprite):
         self.speed = 150
         self.input_blocked = False
 
-        # Timers
+        # Timers - separate for LMB and RMB actions
         self.timers = {
-            'tool_use': Timer(300, self.use_tool),
+            'tool_use_lmb': Timer(300, self.use_tool_lmb),  # For mining (pickaxe)
+            'tool_use_rmb': Timer(300, self.use_tool_rmb),  # For farming/eating
             'harvest': Timer(200)
         }
 
@@ -88,73 +89,56 @@ class Player(pygame.sprite.Sprite):
         """Check if player has item in inventory"""
         return self.inventory.has_item(item_id, amount)
     
-    def use_item(self, item_id):
-        """Use/consume an item from inventory"""
-        from items import get_item, ItemType
-        
-        item_def = get_item(item_id)
-        if not item_def:
-            return False
-        
-        # Handle food items
-        if item_def.type == ItemType.FOOD:
-            if self.remove_item(item_id, 1):
-                if hasattr(item_def, 'hunger_restore'):
-                    self.restore_hunger(item_def.hunger_restore)
-                if hasattr(item_def, 'health_restore'):
-                    self.heal(item_def.health_restore)
-                print(f"Consumed {item_def.name}")
-                return True
-        
-        # Handle seed items - set as selected seed
-        if item_def.type == ItemType.SEED:
-            self.selected_tool = 'seed'
-            self.selected_seed = item_id
-            print(f"Selected {item_def.name} for planting")
-            return True
-        
-        # Handle tool items
-        if item_def.type == ItemType.TOOL:
-            self.selected_tool = item_id
-            print(f"Equipped {item_def.name}")
-            return True
-        
-        return False
-
     def consume_events(self):
         events = self.events.copy()
         self.events.clear()
         return events
 
-    def use_tool(self):
-        """Use the currently selected hotbar item"""
+    def use_tool_lmb(self):
+        """Use tool with LMB (mining with pickaxe)"""
         target_pos = self.get_target_pos()
         
         # Get the item from the selected hotbar slot
         item_id = self.hotbar.get_selected_item_id()
         
         if not item_id:
-            return  # No item in selected slot
+            return
         
-        # Get item definition to check its type/category
+        # Get item definition to check its type
         item = get_item(item_id)
         if not item:
             return
         
-        # Dispatch based on item type
+        # LMB: Only pickaxe
+        if item.type == ItemType.TOOL and item_id == 'pickaxe':
+            self.events.append(('pickaxe', target_pos))
+
+    def use_tool_rmb(self):
+        """Use tool with RMB (farming tools, seeds, food)"""
+        target_pos = self.get_target_pos()
+        
+        # Get the item from the selected hotbar slot
+        item_id = self.hotbar.get_selected_item_id()
+        
+        if not item_id:
+            return
+        
+        # Get item definition to check its type
+        item = get_item(item_id)
+        if not item:
+            return
+        
+        # RMB: Farming tools (hoe, watering can), seeds, and food
         if item.type == ItemType.TOOL:
             if item_id == 'hoe':
                 self.events.append(('hoe', target_pos))
             elif item_id == 'watering_can':
                 self.events.append(('water', target_pos))
-            elif item_id == 'pickaxe':
-                self.events.append(('pickaxe', target_pos))
         
         elif item.type == ItemType.SEED:
             self.events.append(('plant', target_pos, item_id))
         
         elif item.type == ItemType.FOOD:
-            # Eat food directly from hotbar
             self.eat_food(item_id)
 
     def eat_food(self, item_id):
@@ -183,9 +167,15 @@ class Player(pygame.sprite.Sprite):
     def handle_input(self):
         if self.input_blocked:
             return
+        
         keys = pygame.key.get_pressed()
+        mouse_buttons = pygame.mouse.get_pressed()
 
-        if not self.timers['tool_use'].active:
+        # Check if any tool timer is active
+        any_timer_active = (self.timers['tool_use_lmb'].active or 
+                           self.timers['tool_use_rmb'].active)
+
+        if not any_timer_active:
             # Movement
             self.direction.x = 0
             self.direction.y = 0
@@ -203,19 +193,35 @@ class Player(pygame.sprite.Sprite):
                 self.direction.y = 1
                 self.status = 'down'
 
-            # Tool use with SPACE
-            if keys[pygame.K_SPACE]:
-                # Check if the selected hotbar item is a tool/seed/food
+            # LMB: Mining (pickaxe only)
+            if mouse_buttons[0]:  # Left mouse button
                 item_id = self.hotbar.get_selected_item_id()
                 if item_id:
                     item = get_item(item_id)
-                    # Activate tool timer for tools, seeds, and food
-                    if item and item.type in [ItemType.TOOL, ItemType.SEED, ItemType.FOOD]:
-                        self.timers['tool_use'].activate()
+                    if item and item.type == ItemType.TOOL and item_id == 'pickaxe':
+                        self.timers['tool_use_lmb'].activate()
                         self.frame_index = 0
                         self.direction = pygame.math.Vector2(0, 0)
             
-            # Harvest (interaction key)
+            # RMB: Farming tools, seeds, food
+            if mouse_buttons[2]:  # Right mouse button
+                item_id = self.hotbar.get_selected_item_id()
+                if item_id:
+                    item = get_item(item_id)
+                    if item:
+                        # Check if it's a farming tool, seed, or food
+                        is_farming_tool = (item.type == ItemType.TOOL and 
+                                         item_id in ['hoe', 'watering_can'])
+                        is_usable = (is_farming_tool or 
+                                   item.type == ItemType.SEED or 
+                                   item.type == ItemType.FOOD)
+                        
+                        if is_usable:
+                            self.timers['tool_use_rmb'].activate()
+                            self.frame_index = 0
+                            self.direction = pygame.math.Vector2(0, 0)
+            
+            # Harvest (interaction key) - E key
             if keys[pygame.K_e] and not self.timers['harvest'].active:
                 self.timers['harvest'].activate()
                 target_pos = self.get_target_pos()
@@ -342,8 +348,15 @@ class Player(pygame.sprite.Sprite):
         if self.direction.magnitude() == 0:
             self.status = self.status.split('_')[0] + '_idle'
 
-        if self.timers['tool_use'].active:
-            self.status = self.status.split('_')[0] + '_' + self.selected_tool
+        # Update animation based on active timer
+        if self.timers['tool_use_lmb'].active or self.timers['tool_use_rmb'].active:
+            item_id = self.hotbar.get_selected_item_id()
+            if item_id:
+                item = get_item(item_id)
+                if item and item.type == ItemType.TOOL:
+                    self.status = self.status.split('_')[0] + '_' + item_id
+                elif item and item.type == ItemType.SEED:
+                    self.status = self.status.split('_')[0] + '_seed'
     
     def update_timers(self):
         for timer in self.timers.values():

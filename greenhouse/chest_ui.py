@@ -10,8 +10,8 @@ class ChestUI:
         self.chest_inventory = chest_inventory
         self.visible = True
 
-        self.slot_size = 72  # Match InventoryUI
-        self.padding = 8
+        self.slot_size = 64
+        self.padding = 13
         self.cols = 6
 
         self.dragging = False
@@ -171,8 +171,8 @@ class ChestUI:
                 try:
                     item_image = pygame.image.load(path).convert_alpha()
                     # Scale to fit slot (leave some padding)
-                    image_size = int(self.slot_size * 0.7)  # 70% of slot size
-                    item_image = pygame.transform.smoothscale(item_image, (image_size, image_size))
+                    image_size = int(self.slot_size * 0.6)  # 70% of slot size
+                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
                     break
                 except Exception as e:
                     print(f"[CHEST_UI] Error loading {path}: {e}")

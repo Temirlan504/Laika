@@ -194,10 +194,10 @@ class GreenhouseState:
     def handle_input(self, events):
         for event in events:
 
-            # ---------------- CHEST UI OPEN ----------------
+            # CHEST UI OPEN
             if self.chest_ui and self.chest_ui.visible:
 
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                     self.greenhouse_data['chests'][self.active_chest.id] = \
                         self.active_chest.serialize()
                     self.chest_ui.close()
@@ -220,7 +220,7 @@ class GreenhouseState:
                 # IMPORTANT: stop processing input here
                 return
 
-            # ---------------- NO CHEST UI ----------------
+            # NO CHEST UI
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_TAB:
@@ -298,7 +298,7 @@ class GreenhouseState:
                                 # Different items or one empty - just swap
                                 self.game.inventory_ui.swap_slots(from_info, to_info)
             
-            # Exit greenhouse
+            # EXIT GREENHOUSE
             if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
                 self.save_soil_state()
                 self.state_machine.change_state("level", return_pos=self.return_pos)
