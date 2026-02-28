@@ -15,7 +15,11 @@ from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
 
+
 class LevelState:
+    # --- Class-level constants ---
+    LAST_SOL = 300
+
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
         self.game = game
@@ -23,8 +27,7 @@ class LevelState:
         self.fade_effect = FadeEffect(self.screen)
         self.night_overlay = NightOverlay(self.game.clock_system, self.screen)
 
-        self.sleep_state_machine = SleepState
-        self.sleep_state = self.sleep_state_machine.AWAKE
+        self.sleep_state = SleepState.AWAKE
 
         self.build_mode = False
         self.delete_mode = False
@@ -32,16 +35,21 @@ class LevelState:
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
-        self.max_meteorites = 30
-        self.meteor_spawn_timer = Timer(10000)  # Try to spawn a meteor every 10 seconds
+        self.max_meteorites = 50
+        self.meteor_spawn_timer = Timer(10000)
         self.meteor_spawn_timer.activate()
 
-        self.LAST_SOL = 300
+        # --- Interaction state (initialised here so handle_input is always safe) ---
+        self.current_interaction = None
+        self.current_greenhouse = None
+
+        # Guard so the ending is triggered at most once
+        self.ending_triggered = False
 
         # --- DEBUG MODE ---
         self.debug_mode = False
         self.debug_timer = 0
-        
+
         # Load Tiled map
         self.map_path = 'data/tmx/main.tmx'
         self.game_map = MapLoader(self.map_path)
@@ -61,81 +69,93 @@ class LevelState:
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         self.preview = DomePreview(dome_image)
 
+        # Cached player hitbox mask for build-mode collision (rebuilt on resize)
+        self._player_hitbox_mask = None
+
+        # Flat list of all living plants so we don't walk the whole greenhouse
+        # dict every frame.  Plants register / unregister themselves via helpers.
+        self._active_plants = []
+
         # Player stats
         self.oxygen_system = OxygenSystem()
         self.hunger_system = HungerSystem()
 
         self.setup_level()
 
-    def on_resize(self, size):
-        # Update local screen reference
-        self.screen = self.game.screen
+    # ------------------------------------------------------------------
+    # Plant registration helpers
+    # ------------------------------------------------------------------
+    def register_plant(self, plant):
+        if plant not in self._active_plants:
+            self._active_plants.append(plant)
 
-        # Tell effects to rebuild their surfaces
+    def unregister_plant(self, plant):
+        try:
+            self._active_plants.remove(plant)
+        except ValueError:
+            pass
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+    def on_resize(self, size):
+        self.screen = self.game.screen
         self.fade_effect.on_resize(self.screen)
         self.night_overlay.on_resize(self.screen)
+        # Player hitbox size may have changed
+        self._player_hitbox_mask = None
 
     def setup_level(self):
-        # Make sure player exists
         if self.game.player is None:
-            raise RuntimeError("Player must be initialized before entering level state")
-        
-        # Save current player position (in case it was loaded from save)
+            raise RuntimeError("Player must be initialised before entering level state")
+
         saved_position = self.game.player.rect.center
-        
-        # Load map tiles
+
         self.game_map.setup(
             self.all_sprites, self.collision_sprites,
             self.interaction_zones, ground_positions=self.ground_positions
         )
 
-        # Only spawn player at map spawn point if this is a NEW game
-        # (check if player is still at default starting position)
         default_start = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        
-        # If player is at default position AND there's a map spawnpoint, use it
         if saved_position == default_start and self.game_map.player_spawnpoint:
             self.game.player.rect.center = self.game_map.player_spawnpoint
             self.game.player.hitbox.center = self.game_map.player_spawnpoint
-        # Otherwise, keep the loaded position (restore it)
         else:
             self.game.player.rect.center = saved_position
             self.game.player.hitbox.center = saved_position
 
         self.all_sprites.add(self.game.player)
         self.dynamic_sprites.add(self.game.player)
-    
+
     def on_enter(self, return_pos=None, **kwargs):
-        # Make sure player exists - if not, something went wrong
         if not self.game.player:
             print("ERROR: Level entered without player! Returning to main menu.")
             self.state_machine.change_state("main_menu")
             return
-        
-        # Load any pending buildings from save game
+
         if hasattr(self.game, '_pending_buildings'):
             self.game.save_manager.load_pending_buildings(self.game)
-        
-        # Show game UI elements
+
         self.game.day_ui.visible = True
-        self.game.interaction_prompt.visible = False  # Start hidden, shown when near interaction
+        self.game.interaction_prompt.visible = False
 
         if self.game.inventory_ui:
-            self.game.inventory_ui.visible = False  # Start hidden, opened with TAB
+            self.game.inventory_ui.visible = False
         if self.game.hotbar_ui:
-            self.game.hotbar_ui.visible = True  # Hotbar is visible by default
-        
-        # Unblock player input when entering level
+            self.game.hotbar_ui.visible = True
+
         self.game.player.unblock_input()
-        
+
         if return_pos:
             self.game.player.rect.center = return_pos
             self.game.player.hitbox.center = return_pos
 
+    # ------------------------------------------------------------------
+    # Input
+    # ------------------------------------------------------------------
     def handle_input(self, events):
         for event in events:
             if event.type == pygame.KEYDOWN:
-                # ESC: Close inventory if open, otherwise pause menu
                 if event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
                         self.game.inventory_ui.hide()
@@ -143,7 +163,6 @@ class LevelState:
                     else:
                         self.state_machine.change_state("pause_menu")
 
-                # Toggle inventory (handled in state instead of main.py)
                 elif event.key == pygame.K_TAB:
                     self.game.inventory_ui.toggle()
                     if self.game.inventory_ui.visible:
@@ -151,13 +170,11 @@ class LevelState:
                     else:
                         self.game.hotbar_ui.show()
 
-                # Interaction key
                 elif event.key == pygame.K_e:
                     if not self.current_interaction:
                         return
                     zone = self.current_interaction
 
-                    # Dome door interaction
                     if isinstance(zone, DoorInteractionZone):
                         if self.current_greenhouse:
                             self.state_machine.change_state(
@@ -167,216 +184,191 @@ class LevelState:
                             )
                         return
 
-                    # Sleep interaction (Tiled)
                     if zone.text == "Press E to Sleep":
                         if self.game.clock_system.can_sleep():
                             self.start_sleep()
                         else:
                             print("Too early to sleep")
-                
-                # Toggle build mode
+
                 elif event.key == pygame.K_b:
                     self.build_mode = not self.build_mode
                     if self.build_mode:
                         self.delete_mode = False
                     print(f"Build mode: {'ON' if self.build_mode else 'OFF'}")
-                
-                # Toggle delete mode
+
                 elif event.key == pygame.K_x:
                     self.delete_mode = not self.delete_mode
                     if self.delete_mode:
                         self.build_mode = False
                     print(f"Delete mode: {'ON' if self.delete_mode else 'OFF'}")
-                
-                # Hotbar number keys (1-8)
+
                 elif pygame.K_1 <= event.key <= pygame.K_9:
-                    slot_index = event.key - pygame.K_1  # Convert key to 0-8
-                    self.game.player.hotbar.select_slot(slot_index)
-            
-            # Mouse button DOWN events
+                    self.game.player.hotbar.select_slot(event.key - pygame.K_1)
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-                
-                if event.button == 1:  # Left click
-                    # Try inventory drag start first
+
+                if event.button == 1:
                     clicked_slot = self.game.inventory_ui.handle_mouse_down(mouse_pos, 1)
-                    
-                    # If not clicking inventory, handle building/deleting
+
                     if clicked_slot is None:
                         if self.delete_mode:
-                            mouse_world_pos = self.mouse_to_world()
-                            for dome in self.dome_sprites:
-                                if dome.rect.collidepoint(mouse_world_pos):
-                                    local_x = int(mouse_world_pos.x - dome.rect.x)
-                                    local_y = int(mouse_world_pos.y - dome.rect.y)
-                                    
-                                    if (0 <= local_x < dome.rect.width and 
-                                        0 <= local_y < dome.rect.height):
-                                        if dome.mask.get_at((local_x, local_y)):
-                                            for zone in self.interaction_zones:
-                                                if isinstance(zone, DoorInteractionZone) and zone.owner == dome:
-                                                    zone.kill()
-                                                    break
-                                            dome.kill()
-                                            print("Dome deleted!")
-                                            break
-                        
+                            self._handle_delete_click()
                         elif self.build_mode:
-                            if self.preview.valid:
-                                dome = GreenhouseDome(
-                                    center_pos=self.preview.rect.center,
-                                    image=self.preview.base_image,
-                                    groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
-                                )
-                                greenhouse_id = dome.greenhouse_id
-                                if greenhouse_id not in self.game.greenhouse_data:
-                                    self.game.greenhouse_data[greenhouse_id] = {
-                                        "soil": {}
-                                    }
+                            self._handle_build_click()
 
-                                # Create door interaction zone
-                                door_world_pos = (
-                                    pygame.Vector2(dome.rect.center)
-                                    + dome.door_offset
-                                )
-                                door_rect = pygame.Rect(0, 0, 96, 48)
-                                door_rect.center = door_world_pos
-
-                                zone = DoorInteractionZone(
-                                    rect=door_rect,
-                                    owner=dome,
-                                    text="Press E to Enter"
-                                )
-                                self.interaction_zones.add(zone)
-
-                # Scroll wheel up
                 elif event.button == 4:
                     self.game.player.hotbar.select_previous()
-
-                # Scroll wheel down
                 elif event.button == 5:
                     self.game.player.hotbar.select_next()
-            
-            # Mouse button UP events
+
             if event.type == pygame.MOUSEBUTTONUP:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if event.button == 1:  # Left click release
-                    # Handle drag-and-drop
+                if event.button == 1:
+                    mouse_pos = pygame.mouse.get_pos()
                     result = self.game.inventory_ui.handle_mouse_up(mouse_pos, 1)
                     if result:
                         from_info, to_info, action_type = result
-                        
                         if action_type == 'swap':
-                            # from_info and to_info are now tuples like ('inventory', index) or ('hotbar', index)
-                            from_type, from_index = from_info
-                            to_type, to_index = to_info
-                            
-                            # Get slot data based on storage type
-                            if from_type == 'inventory':
-                                from_data = self.game.player.inventory.get_slot(from_index)
-                            else:  # hotbar
-                                from_data = self.game.player.hotbar.get_slot(from_index)
-                            
-                            if to_type == 'inventory':
-                                to_data = self.game.player.inventory.get_slot(to_index)
-                            else:  # hotbar
-                                to_data = self.game.player.hotbar.get_slot(to_index)
-                            
-                            # If both slots have the same item, try to stack
-                            if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
-                                if not self.game.inventory_ui.stack_items(from_info, to_info):
-                                    # If stacking failed (full), swap instead
-                                    self.game.inventory_ui.swap_slots(from_info, to_info)
-                            else:
-                                # Different items or one empty - just swap
-                                self.game.inventory_ui.swap_slots(from_info, to_info)
+                            self._resolve_inventory_drag(from_info, to_info)
 
-    def start_sleep(self):
-        if self.sleep_state != self.sleep_state_machine.AWAKE:
+    def _handle_delete_click(self):
+        mouse_world_pos = self.mouse_to_world()
+        for dome in self.dome_sprites:
+            if not dome.rect.collidepoint(mouse_world_pos):
+                continue
+            local_x = int(mouse_world_pos.x - dome.rect.x)
+            local_y = int(mouse_world_pos.y - dome.rect.y)
+            if 0 <= local_x < dome.rect.width and 0 <= local_y < dome.rect.height:
+                if dome.mask.get_at((local_x, local_y)):
+                    for zone in self.interaction_zones:
+                        if isinstance(zone, DoorInteractionZone) and zone.owner == dome:
+                            zone.kill()
+                            break
+                    dome.kill()
+                    print("Dome deleted!")
+                    break
+
+    def _handle_build_click(self):
+        if not self.preview.valid:
             return
+        dome = GreenhouseDome(
+            center_pos=self.preview.rect.center,
+            image=self.preview.base_image,
+            groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
+        )
+        if dome.greenhouse_id not in self.game.greenhouse_data:
+            self.game.greenhouse_data[dome.greenhouse_id] = {"soil": {}}
 
-        self.sleep_state = self.sleep_state_machine.FADING_OUT
+        door_world_pos = pygame.Vector2(dome.rect.center) + dome.door_offset
+        door_rect = pygame.Rect(0, 0, 96, 48)
+        door_rect.center = door_world_pos
+
+        zone = DoorInteractionZone(rect=door_rect, owner=dome, text="Press E to Enter")
+        self.interaction_zones.add(zone)
+
+    def _resolve_inventory_drag(self, from_info, to_info):
+        """Stack or swap two inventory/hotbar slots after a drag-and-drop."""
+        from_type, from_index = from_info
+        to_type, to_index = to_info
+
+        from_data = (
+            self.game.player.inventory.get_slot(from_index)
+            if from_type == 'inventory'
+            else self.game.player.hotbar.get_slot(from_index)
+        )
+        to_data = (
+            self.game.player.inventory.get_slot(to_index)
+            if to_type == 'inventory'
+            else self.game.player.hotbar.get_slot(to_index)
+        )
+
+        if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
+            if not self.game.inventory_ui.stack_items(from_info, to_info):
+                self.game.inventory_ui.swap_slots(from_info, to_info)
+        else:
+            self.game.inventory_ui.swap_slots(from_info, to_info)
+
+    # ------------------------------------------------------------------
+    # Sleep / day cycle
+    # ------------------------------------------------------------------
+    def start_sleep(self):
+        if self.sleep_state != SleepState.AWAKE:
+            return
+        self.sleep_state = SleepState.FADING_OUT
         self.game.player.block_input()
         self.fade_effect.fade_in(self.on_fade_out_complete)
 
     def on_fade_out_complete(self):
-        self.sleep_state = self.sleep_state_machine.ASLEEP
-        
-        # Sleeping always advances the day now (since we can't sleep after midnight)
+        self.sleep_state = SleepState.ASLEEP
+
         if not self.game.day_cycle.day_advanced:
             self.game.day_cycle.try_advance_day("sleep")
 
         # Advance crops in all greenhouses
         for greenhouse in self.game.greenhouse_data.values():
             for data in greenhouse['soil'].values():
-                plant = data['plant']
-                if plant:
-                    plant.grow_to_final()
-        
+                if data['plant']:
+                    data['plant'].grow_to_final()
+
         # Auto-save after sleeping
         self.game.save_manager.auto_save(self.game)
 
-        # Jump to morning and reset cycle for the new day
         self.game.clock_system.set_time(6, 0)
         self.game.day_cycle.reset_cycle()
-        
-        self.fade_effect.fade_out(self.on_fade_in_complete)
-        
-        # Check if we've reached the final day
+
+        # Check ending *before* queuing the fade-in so we never fire
+        # on_fade_in_complete inside the ending scene.
         if self.check_ending_trigger():
             return
 
+        self.fade_effect.fade_out(self.on_fade_in_complete)
+
     def check_ending_trigger(self):
-        """Check if we've reached the final day and trigger ending"""
+        """Trigger the ending scene if we've reached the final day.
+        Safe to call multiple times — acts only once."""
+        if self.ending_triggered:
+            return False
         if self.game.day_cycle.day >= self.LAST_SOL:
             print(f"[ENDING] Reached final day ({self.LAST_SOL})! Triggering ending...")
-            
-            # Block player input
+            self.ending_triggered = True
             if self.game.player:
                 self.game.player.block_input()
-            
-            # Transition to ending scene
             self.state_machine.change_state("ending_scene")
             return True
         return False
-    
+
     def on_new_day(self, day):
-        """Called when a new day starts (from DayCycle)"""
+        """Called when a new day starts (from DayCycle)."""
         print(f"[LEVEL] New day started: Sol {day}")
-        
-        # Check if this is the final day
-        if self.check_ending_trigger():
-            return  # Ending triggered, don't continue
+        self.check_ending_trigger()
 
     def on_fade_in_complete(self):
-        self.sleep_state = self.sleep_state_machine.AWAKE
+        self.sleep_state = SleepState.AWAKE
         self.game.player.unblock_input()
 
+    # ------------------------------------------------------------------
+    # Collision / interaction
+    # ------------------------------------------------------------------
     def check_collisions(self, dt):
-        # Make sure player exists and is in the game
         if not self.game.player:
             return
-        
+
         for sprite in self.dynamic_sprites:
             if sprite == self.game.player:
                 sprite.update(dt, self.collision_sprites)
             else:
                 sprite.update(dt)
-        
-        # Check if player is in any interaction zone
+
         self.current_interaction = None
         self.current_greenhouse = None
-        
+
         for zone in self.interaction_zones:
             if self.game.player.hitbox.colliderect(zone.rect):
                 self.current_interaction = zone
-                
                 if isinstance(zone, DoorInteractionZone):
                     self.current_greenhouse = zone.owner
                 break
-        
-        # Update interaction prompt
+
         if self.current_interaction:
             if isinstance(self.current_interaction, DoorInteractionZone):
                 self.game.interaction_prompt.show("Press E to Enter Greenhouse")
@@ -385,204 +377,178 @@ class LevelState:
         else:
             self.game.interaction_prompt.hide()
 
-    def draw_debug(self):
-        if self.debug_mode:
-            for sprite in self.collision_sprites:
-                offset_rect = sprite.rect.copy()
-                offset_rect.x -= self.all_sprites.player.rect.centerx - self.screen.get_width() // 2
-                offset_rect.y -= self.all_sprites.player.rect.centery - self.screen.get_height() // 2
-                pygame.draw.rect(self.screen, (0, 255, 0), offset_rect, 2)
-            
-            for zone in self.interaction_zones:
-                offset_rect = zone.rect.copy()
-                offset_rect.x -= self.all_sprites.player.rect.centerx - self.screen.get_width() // 2
-                offset_rect.y -= self.all_sprites.player.rect.centery - self.screen.get_height() // 2
-                pygame.draw.rect(self.screen, (0, 0, 255), offset_rect, 2)
+    # ------------------------------------------------------------------
+    # Build mode helpers
+    # ------------------------------------------------------------------
+    def _get_player_hitbox_mask(self):
+        """Return a cached filled mask matching the player's current hitbox."""
+        hitbox = self.game.player.hitbox
+        if (self._player_hitbox_mask is None or
+                self._player_hitbox_mask.get_size() != hitbox.size):
+            self._player_hitbox_mask = pygame.mask.Mask(hitbox.size)
+            self._player_hitbox_mask.fill()
+        return self._player_hitbox_mask
 
-    def mouse_to_world(self):
-        mouse_screen_pos = pygame.mouse.get_pos()
-        mouse_world_pos = pygame.Vector2(
-            mouse_screen_pos[0] + self.all_sprites.offset.x,
-            mouse_screen_pos[1] + self.all_sprites.offset.y
-        )
-        return mouse_world_pos
-    
     def can_place_dome(self, preview, obstacles):
         # Check against player
         if preview.rect.colliderect(self.game.player.hitbox):
-            offset_x = self.game.player.hitbox.x - preview.rect.x
-            offset_y = self.game.player.hitbox.y - preview.rect.y
-            
-            player_mask = pygame.mask.Mask(self.game.player.hitbox.size)
-            player_mask.fill()
-            
-            if preview.mask.overlap(player_mask, (offset_x, offset_y)):
+            offset = (
+                self.game.player.hitbox.x - preview.rect.x,
+                self.game.player.hitbox.y - preview.rect.y,
+            )
+            if preview.mask.overlap(self._get_player_hitbox_mask(), offset):
                 return False
-        
-        # Check against other obstacles
+
         for obj in obstacles:
             if not preview.rect.colliderect(obj.rect):
                 continue
-
             if hasattr(obj, "mask") and obj.mask:
-                offset_x = obj.rect.x - preview.rect.x
-                offset_y = obj.rect.y - preview.rect.y
-
-                if preview.mask.overlap(obj.mask, (offset_x, offset_y)):
+                offset = (obj.rect.x - preview.rect.x, obj.rect.y - preview.rect.y)
+                if preview.mask.overlap(obj.mask, offset):
                     return False
         return True
 
-    def draw_delete_cursor(self):
-        mouse_screen_pos = pygame.mouse.get_pos()
-        pygame.draw.circle(self.screen, (255, 0, 0), mouse_screen_pos, 10, 2)
-        pygame.draw.line(self.screen, (255, 0, 0), 
-                        (mouse_screen_pos[0] - 7, mouse_screen_pos[1] - 7),
-                        (mouse_screen_pos[0] + 7, mouse_screen_pos[1] + 7), 2)
-        pygame.draw.line(self.screen, (255, 0, 0),
-                        (mouse_screen_pos[0] + 7, mouse_screen_pos[1] - 7),
-                        (mouse_screen_pos[0] - 7, mouse_screen_pos[1] + 7), 2)
-
+    # ------------------------------------------------------------------
+    # Meteor spawning
+    # ------------------------------------------------------------------
     def try_spawn_meteor(self):
-        """Spawn a meteor at a valid ground position, avoiding obstacles"""
-        if len(self.meteorites) >= self.max_meteorites:
+        if len(self.meteorites) >= self.max_meteorites or not self.ground_positions:
             return
 
-        if not self.ground_positions:
-            return
+        # Build the meteor mask once per spawn attempt
+        meteor_size = (TILE_SIZE, TILE_SIZE)
+        meteor_mask = pygame.mask.Mask(meteor_size)
+        meteor_mask.fill()
 
-        # Try multiple times to find a valid spawn position
-        max_attempts = 15
-        for attempt in range(max_attempts):
+        for attempt in range(15):
             pos = random.choice(self.ground_positions)
             spawn_x = pos[0] + TILE_SIZE // 2
             spawn_y = pos[1] + TILE_SIZE // 2
-            
-            # Create a rect for the meteor spawn position
+
             meteor_spawn_rect = pygame.Rect(
-                spawn_x - TILE_SIZE // 2,
-                spawn_y - TILE_SIZE // 2,
-                TILE_SIZE,
-                TILE_SIZE
+                pos[0], pos[1], TILE_SIZE, TILE_SIZE
             )
-            
-            # Check if position is valid
-            if self.is_valid_meteor_spawn(meteor_spawn_rect):
+
+            if self._is_valid_meteor_spawn(meteor_spawn_rect, meteor_mask):
                 Meteorite(
                     pos=pos,
-                    groups=[
-                        self.all_sprites,
-                        self.meteorites,
-                        self.collision_sprites
-                    ]
+                    groups=[self.all_sprites, self.meteorites, self.collision_sprites]
                 )
-                print(f"[METEOR] Spawned at ({pos[0]}, {pos[1]}) - Total: {len(self.meteorites)}/{self.max_meteorites}")
-                break
-            elif attempt == max_attempts - 1:
-                print(f"[METEOR] Failed to find valid spawn position after {max_attempts} attempts")
+                print(f"[METEOR] Spawned at {pos} - Total: {len(self.meteorites)}/{self.max_meteorites}")
+                return
 
-    def is_valid_meteor_spawn(self, meteor_rect):
-        """Check if a position is valid for meteor spawning"""
-        
-        # Don't spawn too close to player (give them some space)
-        player_distance_threshold = TILE_SIZE * 3  # 3 tiles away
-        dx = self.game.player.rect.centerx - meteor_rect.centerx
-        dy = self.game.player.rect.centery - meteor_rect.centery
-        distance_to_player = (dx*dx + dy*dy) ** 0.5
-        
-        if distance_to_player < player_distance_threshold:
+        print("[METEOR] Failed to find a valid spawn position after 15 attempts")
+
+    def _is_valid_meteor_spawn(self, meteor_rect, meteor_mask):
+        """Return True if meteor_rect is a valid spawn location.
+
+        Parameters
+        ----------
+        meteor_mask : pygame.mask.Mask
+            Pre-built filled mask matching meteor_rect.size — passed in so we
+            don't allocate a new one on every obstacle check.
+        """
+        # Keep a safe distance from the player
+        player_center = pygame.Vector2(self.game.player.rect.center)
+        meteor_center = pygame.Vector2(meteor_rect.center)
+        if player_center.distance_to(meteor_center) < TILE_SIZE * 3:
             return False
-        
-        # Don't spawn on greenhouses
+
+        # Don't spawn on domes
         for dome in self.dome_sprites:
             if meteor_rect.colliderect(dome.rect):
-                # Check mask collision for precise detection
                 if hasattr(dome, 'mask') and dome.mask:
-                    offset_x = dome.rect.x - meteor_rect.x
-                    offset_y = dome.rect.y - meteor_rect.y
-                    
-                    meteor_mask = pygame.mask.Mask(meteor_rect.size)
-                    meteor_mask.fill()
-                    
-                    if meteor_mask.overlap(dome.mask, (offset_x, offset_y)):
+                    offset = (dome.rect.x - meteor_rect.x, dome.rect.y - meteor_rect.y)
+                    if meteor_mask.overlap(dome.mask, offset):
                         return False
-        
-        # Don't spawn on other collision objects (cliffs, rocks, etc.)
+
+        # Don't spawn on other collision objects
+        meteorite_set = set(self.meteorites)
+        dome_set = set(self.dome_sprites)
         for sprite in self.collision_sprites:
-            # Skip meteorites themselves
-            if sprite in self.meteorites:
+            if sprite in meteorite_set or sprite in dome_set or sprite is self.game.player:
                 continue
-            # Skip domes (already checked above)
-            if sprite in self.dome_sprites:
-                continue
-            # Skip player (already checked above)
-            if sprite == self.game.player:
-                continue
-                
             if meteor_rect.colliderect(sprite.rect):
-                # For sprites with masks, do precise collision
                 if hasattr(sprite, 'mask') and sprite.mask:
-                    offset_x = sprite.rect.x - meteor_rect.x
-                    offset_y = sprite.rect.y - meteor_rect.y
-                    
-                    meteor_mask = pygame.mask.Mask(meteor_rect.size)
-                    meteor_mask.fill()
-                    
-                    if meteor_mask.overlap(sprite.mask, (offset_x, offset_y)):
+                    offset = (sprite.rect.x - meteor_rect.x, sprite.rect.y - meteor_rect.y)
+                    if meteor_mask.overlap(sprite.mask, offset):
                         return False
                 else:
-                    # For sprites without masks, rect collision is enough
                     return False
-        
-        # Don't spawn too close to existing meteorites
-        min_distance = TILE_SIZE * 2  # At least 2 tiles apart
+
+        # Keep meteorites spread out
+        min_dist_sq = (TILE_SIZE * 2) ** 2
         for meteor in self.meteorites:
             dx = meteor.rect.centerx - meteor_rect.centerx
             dy = meteor.rect.centery - meteor_rect.centery
-            distance = (dx*dx + dy*dy) ** 0.5
-            
-            if distance < min_distance:
+            if dx * dx + dy * dy < min_dist_sq:
                 return False
-        
-        # Position is valid!
+
         return True
 
+    # ------------------------------------------------------------------
+    # Tool events
+    # ------------------------------------------------------------------
     def handle_tool_events(self):
-        """Handle tool usage events from player"""
-        events = self.game.player.consume_events()
-        for event_data in events:
-            event_type = event_data[0]
-            pos = event_data[1]
-            
+        for event_data in self.game.player.consume_events():
+            event_type, pos = event_data[0], event_data[1]
             if event_type == 'pickaxe':
-                # Check all meteorites
+                threshold_sq = (TILE_SIZE * 0.7) ** 2
                 for meteor in self.meteorites:
                     dx = meteor.rect.centerx - pos[0]
                     dy = meteor.rect.centery - pos[1]
-                    distance = (dx*dx + dy*dy) ** 0.5
-                    
-                    if distance <= TILE_SIZE * 0.7:
+                    if dx * dx + dy * dy <= threshold_sq:
                         meteor.mine(self.game.player)
                         break
 
+    # ------------------------------------------------------------------
+    # Draw helpers
+    # ------------------------------------------------------------------
+    def draw_debug(self):
+        if not self.debug_mode:
+            return
+        cx = self.all_sprites.player.rect.centerx - self.screen.get_width() // 2
+        cy = self.all_sprites.player.rect.centery - self.screen.get_height() // 2
+        for sprite in self.collision_sprites:
+            r = sprite.rect.move(-cx, -cy)
+            pygame.draw.rect(self.screen, (0, 255, 0), r, 2)
+        for zone in self.interaction_zones:
+            r = zone.rect.move(-cx, -cy)
+            pygame.draw.rect(self.screen, (0, 0, 255), r, 2)
+
+    def draw_delete_cursor(self):
+        mp = pygame.mouse.get_pos()
+        pygame.draw.circle(self.screen, (255, 0, 0), mp, 10, 2)
+        pygame.draw.line(self.screen, (255, 0, 0), (mp[0] - 7, mp[1] - 7), (mp[0] + 7, mp[1] + 7), 2)
+        pygame.draw.line(self.screen, (255, 0, 0), (mp[0] + 7, mp[1] - 7), (mp[0] - 7, mp[1] + 7), 2)
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
+    def mouse_to_world(self):
+        mx, my = pygame.mouse.get_pos()
+        return pygame.Vector2(
+            mx + self.all_sprites.offset.x,
+            my + self.all_sprites.offset.y
+        )
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
     def run(self, dt):
         self.screen.fill('black')
 
         self.fade_effect.update(dt)
         self.night_overlay.update()
 
-        # Only update game logic if not sleeping and dt > 0 (not paused)
-        if self.sleep_state == self.sleep_state_machine.AWAKE and dt > 0:
-            # Update inventory UI hover state
+        if self.sleep_state == SleepState.AWAKE and dt > 0:
             if self.game.inventory_ui:
                 self.game.inventory_ui.update()
 
-            # Update all plant growth timers (even when outside greenhouse)
-            for greenhouse_data in self.game.greenhouse_data.values():
-                for soil_data in greenhouse_data.get('soil', {}).values():
-                    plant = soil_data.get('plant')
-                    if plant:
-                        plant.update()  # Update plant's growth timer
-            
+            # Update all active plants (flat list — no nested dict walk)
+            for plant in self._active_plants:
+                plant.update()
+
             # Meteor spawning
             self.meteor_spawn_timer.update()
             if self.meteor_spawn_timer.deactivate:
@@ -590,32 +556,25 @@ class LevelState:
                     self.try_spawn_meteor()
                 self.meteor_spawn_timer.activate()
 
-            # Block player input when inventory is open
             if self.game.inventory_ui.visible:
                 self.game.player.block_input()
             else:
                 self.game.player.unblock_input()
-            
+
             self.check_collisions(dt)
             self.oxygen_system.update(self.game.player, dt)
             self.hunger_system.update(self.game.player, dt)
-
             self.handle_tool_events()
-        elif dt == 0:
-            # Game is paused - make absolutely sure player is blocked
-            if self.game.player:
-                self.game.player.block_input()
 
-        # Build preview (always show even when paused)
+        elif dt == 0 and self.game.player:
+            self.game.player.block_input()
+
         if self.build_mode:
             self.preview.set_position(self.mouse_to_world())
-            valid = self.can_place_dome(
-                self.preview,
-                self.collision_sprites.sprites()
+            self.preview.set_valid(
+                self.can_place_dome(self.preview, self.collision_sprites.sprites())
             )
-            self.preview.set_valid(valid)
 
-        # Always draw the game (even when paused - pause menu will overlay on top)
         self.all_sprites.custom_draw()
 
         if self.build_mode:
@@ -629,14 +588,3 @@ class LevelState:
 
         if hasattr(self.game, 'hotbar_ui'):
             self.game.hotbar_ui.draw()
-
-        # Debug info (only when dt > 0, not paused)
-        # if dt > 0:
-        #     self.debug_timer += dt
-        #     if self.debug_timer >= 1.0:
-        #         print(
-        #             f"[DEBUG] HP={self.game.player.current_health:.0f} | "
-        #             f"O2={self.game.player.current_oxygen:.0f} | "
-        #             f"Hunger={self.game.player.current_hunger:.0f}"
-        #         )
-        #         self.debug_timer = 0
