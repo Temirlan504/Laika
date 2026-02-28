@@ -37,6 +37,7 @@ class UIConfig:
         image_paths = {
             'day_time_panel_bg': 'assets/ui/day_time_panel_bg.png',
             'inventory_bg': 'assets/ui/inventory_bg.png',
+            'chest_bg': 'assets/ui/chest_bg.png',
             'interaction_prompt_bg': 'assets/ui/interaction_prompt_bg.png',
         }
         

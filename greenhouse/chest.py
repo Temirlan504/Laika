@@ -1,7 +1,7 @@
 from systems.inventory_system import Inventory
 
 class Chest:
-    def __init__(self, chest_id, size=12):
+    def __init__(self, chest_id, size=36):
         self.id = chest_id
         self.inventory = Inventory(size)
         self.opened = False

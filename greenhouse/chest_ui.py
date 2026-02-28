@@ -13,6 +13,7 @@ class ChestUI:
         self.slot_size = 64
         self.padding = 13
         self.cols = 6
+        self.rows = 6
 
         self.dragging = False
         self.drag_source_inventory = None
@@ -23,13 +24,40 @@ class ChestUI:
         self.item_font = ui_config.get_font(12)
         self.qty_font = ui_config.get_font(16)
 
-        # Panel dimensions
-        self.panel_width = 500
-        self.panel_height = 400
+        # Load background images
+        self.inventory_bg_image = ui_config.get_image('inventory_bg')
+        self.chest_bg_image = ui_config.get_image('chest_bg')
         
-        # Calculate centered positions
-        screen_width = screen.get_width()
-        screen_height = screen.get_height()
+        # Panel dimensions - adjusted for 6x6 grid
+        panel_content_width = self.cols * (self.slot_size + self.padding) - self.padding + 40
+        panel_content_height = self.rows * (self.slot_size + self.padding) - self.padding + 100
+        
+        self.panel_width = 600
+        self.panel_height = 600
+        
+        # Scale background images if they exist
+        if self.inventory_bg_image:
+            self.player_bg_scaled = pygame.transform.scale(self.inventory_bg_image, (self.panel_width, self.panel_height))
+        else:
+            self.player_bg_scaled = None
+        
+        if self.chest_bg_image:
+            self.chest_bg_scaled = pygame.transform.scale(self.chest_bg_image, (self.panel_width, self.panel_height))
+        else:
+            # Use inventory bg as fallback if chest bg doesn't exist
+            self.chest_bg_scaled = self.player_bg_scaled
+        
+        # Initialize panels
+        self.player_panel = pygame.Rect(0, 0, self.panel_width, self.panel_height)
+        self.chest_panel = pygame.Rect(0, 0, self.panel_width, self.panel_height)
+        
+        # Calculate initial positions
+        self.update_panel_positions()
+
+    def update_panel_positions(self):
+        """Recalculate panel positions based on current screen size"""
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
         
         # Center both panels vertically, space them horizontally
         spacing = 40
@@ -37,8 +65,11 @@ class ChestUI:
         start_x = (screen_width - total_width) // 2
         center_y = (screen_height - self.panel_height) // 2
         
-        self.player_panel = pygame.Rect(start_x, center_y, self.panel_width, self.panel_height)
-        self.chest_panel = pygame.Rect(start_x + self.panel_width + spacing, center_y, self.panel_width, self.panel_height)
+        self.player_panel.x = start_x
+        self.player_panel.y = center_y
+        
+        self.chest_panel.x = start_x + self.panel_width + spacing
+        self.chest_panel.y = center_y
 
     def close(self):
         self.visible = False
@@ -56,8 +87,9 @@ class ChestUI:
         row = index // self.cols
         col = index % self.cols
 
-        x = panel.x + 20 + col * (self.slot_size + self.padding)
-        y = panel.y + 60 + row * (self.slot_size + self.padding)
+        # Match the positioning from inventory_ui
+        x = panel.x + 75 + col * (self.slot_size + self.padding)
+        y = panel.y + 75 + row * (self.slot_size + self.padding)
 
         return pygame.Rect(x, y, self.slot_size, self.slot_size)
     
@@ -171,7 +203,7 @@ class ChestUI:
                 try:
                     item_image = pygame.image.load(path).convert_alpha()
                     # Scale to fit slot (leave some padding)
-                    image_size = int(self.slot_size * 0.6)  # 70% of slot size
+                    image_size = int(self.slot_size * 0.7)  # 70% of slot size (match inventory_ui)
                     item_image = pygame.transform.scale(item_image, (image_size, image_size))
                     break
                 except Exception as e:
@@ -216,15 +248,19 @@ class ChestUI:
             qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
             self.screen.blit(qty, (rect.right - 22, rect.bottom - 22))
 
-    def draw_panel(self, panel, title, inventory):
-        # Draw panel background
-        pygame.draw.rect(self.screen, ui_config.BLACK, panel)
-        pygame.draw.rect(self.screen, ui_config.WHITE, panel, 2)
-
-        # Draw title
-        title_surf = self.title_font.render(title, True, ui_config.WHITE)
-        title_rect = title_surf.get_rect(centerx=panel.centerx, y=panel.y + 15)
-        self.screen.blit(title_surf, title_rect)
+    def draw_panel(self, panel, title, inventory, bg_image):
+        # Draw background image or fallback
+        if bg_image:
+            self.screen.blit(bg_image, (panel.x, panel.y))
+        else:
+            # Fallback: simple gray panel
+            pygame.draw.rect(self.screen, ui_config.DARK_GRAY, panel)
+            pygame.draw.rect(self.screen, ui_config.WHITE, panel, 2)
+            
+            # Draw title on fallback
+            title_surf = self.title_font.render(title, True, ui_config.WHITE)
+            title_rect = title_surf.get_rect(centerx=panel.centerx, y=panel.y + 15)
+            self.screen.blit(title_surf, title_rect)
 
         # Draw slots
         for i in range(inventory.size):
@@ -233,8 +269,11 @@ class ChestUI:
                 continue
                 
             rect = self.get_slot_rect(panel, i)
-            pygame.draw.rect(self.screen, ui_config.DARK_GRAY, rect)
-            pygame.draw.rect(self.screen, ui_config.WHITE, rect, 1)
+            
+            # Only draw slot backgrounds if no background image
+            if not bg_image:
+                pygame.draw.rect(self.screen, ui_config.DARK_GRAY, rect)
+                pygame.draw.rect(self.screen, ui_config.WHITE, rect, 1)
 
             slot = inventory.get_slot(i)
             if slot:
@@ -244,8 +283,11 @@ class ChestUI:
         if not self.visible:
             return
 
-        self.draw_panel(self.player_panel, "INVENTORY", self.player_inventory)
-        self.draw_panel(self.chest_panel, "CHEST", self.chest_inventory)
+        # Update positions every frame in case of resize
+        self.update_panel_positions()
+
+        self.draw_panel(self.player_panel, "INVENTORY", self.player_inventory, self.player_bg_scaled)
+        self.draw_panel(self.chest_panel, "CHEST", self.chest_inventory, self.chest_bg_scaled)
 
         # Draw dragged item following mouse
         if self.dragging and self.drag_source_slot is not None:
