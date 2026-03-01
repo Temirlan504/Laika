@@ -76,10 +76,6 @@ class LevelState:
         # Cached player hitbox mask for build-mode collision (rebuilt on resize)
         self._player_hitbox_mask = None
 
-        # Flat list of all living plants so we don't walk the whole greenhouse
-        # dict every frame.  Plants register / unregister themselves via helpers.
-        self._active_plants = []
-
         # Player stats
         self.oxygen_system = OxygenSystem()
         self.hunger_system = HungerSystem()
@@ -88,19 +84,6 @@ class LevelState:
         self.iron_ore_counter = IronOreCounterUI(self.game.player, self.screen)
 
         self.setup_level()
-
-    # ------------------------------------------------------------------
-    # Plant registration helpers
-    # ------------------------------------------------------------------
-    def register_plant(self, plant):
-        if plant not in self._active_plants:
-            self._active_plants.append(plant)
-
-    def unregister_plant(self, plant):
-        try:
-            self._active_plants.remove(plant)
-        except ValueError:
-            pass
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -132,11 +115,6 @@ class LevelState:
 
         self.all_sprites.add(self.game.player)
         self.dynamic_sprites.add(self.game.player)
-
-        # Spawn the free starter greenhouse only on a fresh game.
-        # Position comes from the 'starter_greenhouse' marker in Tiled (markers layer).
-        # When loading a save, _pending_buildings is already set so we skip to avoid
-        # double-spawning — the save's building list handles it instead.
         if not hasattr(self.game, '_pending_buildings'):
             pos = self.game_map.starter_greenhouse_pos
             if pos:
@@ -582,8 +560,10 @@ class LevelState:
             if self.game.inventory_ui:
                 self.game.inventory_ui.update()
 
-            for plant in self._active_plants:
-                plant.update()
+            for greenhouse in self.game.greenhouse_data.values():
+                for data in greenhouse.get('soil', {}).values():
+                    if data.get('plant'):
+                        data['plant'].update()
 
             self.meteor_spawn_timer.update()
             if self.meteor_spawn_timer.deactivate:

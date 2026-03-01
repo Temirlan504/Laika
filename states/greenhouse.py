@@ -24,6 +24,9 @@ class GreenhouseState:
         self.near_chest = False
         self.near_chest_index = None
 
+        # Exit door state
+        self.near_exit = False
+
         self.hunger_system = HungerSystem()
 
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
@@ -101,7 +104,6 @@ class GreenhouseState:
     
     def on_exit(self):
         """Called when leaving the greenhouse"""
-        # Hotbar will be shown again by level state's on_enter
         pass
 
     def open_chest(self):
@@ -118,7 +120,6 @@ class GreenhouseState:
             chest.inventory
         )
         
-        # Hide hotbar when chest is open
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.hide()
 
@@ -131,17 +132,19 @@ class GreenhouseState:
             }
         self.greenhouse_data['soil'] = soil_data
 
+    def _exit_greenhouse(self):
+        """Save state and return to level."""
+        self.save_soil_state()
+        self.state_machine.change_state("level", return_pos=self.return_pos)
+
     def center_camera(self):
-        """Center the camera on the greenhouse interior, or follow player if map is larger than screen"""
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
         
-        # Check if the map fits entirely on screen
         self.map_fits_horizontally = self.map_loader.map_width <= screen_width
         self.map_fits_vertically = self.map_loader.map_height <= screen_height
         
         if self.map_fits_horizontally and self.map_fits_vertically:
-            # Map fits on screen - center it
             map_center_x = self.map_loader.map_width / 2
             map_center_y = self.map_loader.map_height / 2
             
@@ -150,39 +153,28 @@ class GreenhouseState:
             
             self.all_sprites.offset.x = map_center_x - screen_center_x
             self.all_sprites.offset.y = map_center_y - screen_center_y
-        else:
-            # Map is larger - will follow player (handled in run method)
-            pass
     
     def update_camera_offset(self):
-        """Update camera offset - either centered or following player"""
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
         
-        # Horizontal offset
         if self.map_fits_horizontally:
-            # Keep centered horizontally
             map_center_x = self.map_loader.map_width / 2
             screen_center_x = screen_width / 2
             self.all_sprites.offset.x = map_center_x - screen_center_x
         else:
-            # Follow player horizontally
             offset_x = self.game.player.rect.centerx - screen_width // 2
             self.all_sprites.offset.x = max(0, min(offset_x, self.map_loader.map_width - screen_width))
         
-        # Vertical offset
         if self.map_fits_vertically:
-            # Keep centered vertically
             map_center_y = self.map_loader.map_height / 2
             screen_center_y = screen_height / 2
             self.all_sprites.offset.y = map_center_y - screen_center_y
         else:
-            # Follow player vertically
             offset_y = self.game.player.rect.centery - screen_height // 2
             self.all_sprites.offset.y = max(0, min(offset_y, self.map_loader.map_height - screen_height))
     
     def on_resize(self, new_size):
-        """Handle window resize - recalculate camera behavior"""
         self.center_camera()
 
     def draw_soil(self):
@@ -204,7 +196,6 @@ class GreenhouseState:
                     self.chest_ui = None
                     self.active_chest = None
                     
-                    # Show hotbar again when closing chest
                     if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
                         self.game.hotbar_ui.show()
                     return
@@ -217,7 +208,6 @@ class GreenhouseState:
                     self.chest_ui.handle_mouse_up(event.pos)
                     return
 
-                # IMPORTANT: stop processing input here
                 return
 
             # NO CHEST UI
@@ -225,7 +215,6 @@ class GreenhouseState:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_TAB:
                     self.game.inventory_ui.toggle()
-                    # Toggle hotbar visibility opposite to inventory
                     if self.game.inventory_ui.visible:
                         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
                             self.game.hotbar_ui.hide()
@@ -233,35 +222,29 @@ class GreenhouseState:
                         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
                             self.game.hotbar_ui.show()
 
-                elif event.key == pygame.K_e and self.near_chest:
-                    self.open_chest()
+                elif event.key == pygame.K_e:
+                    if self.near_chest:
+                        self.open_chest()
+                    elif self.near_exit:
+                        self._exit_greenhouse()
 
                 elif event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
                         self.game.inventory_ui.hide()
-                        # Show hotbar when closing inventory
                         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
                             self.game.hotbar_ui.show()
                     return
                 
-                # Hotbar number keys (1-9)
                 elif pygame.K_1 <= event.key <= pygame.K_9:
-                    slot_index = event.key - pygame.K_1  # Convert key to 0-8
-                    self.game.player.hotbar.select_slot(slot_index)
+                    self.game.player.hotbar.select_slot(event.key - pygame.K_1)
 
-            # Mouse events for inventory and hotbar scrolling
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: # Left click
-                    # Inventory mouse handling
+                if event.button == 1:
                     self.game.inventory_ui.handle_mouse_down(
                         pygame.mouse.get_pos(), event.button
                     )
-                
-                # Scroll wheel up
                 elif event.button == 4:
                     self.game.player.hotbar.select_previous()
-                
-                # Scroll wheel down
                 elif event.button == 5:
                     self.game.player.hotbar.select_next()
 
@@ -272,36 +255,25 @@ class GreenhouseState:
                     )
                     if result:
                         from_info, to_info, action_type = result
-                        
                         if action_type == 'swap':
-                            # Handle swapping between inventory and hotbar
                             from_type, from_index = from_info
                             to_type, to_index = to_info
                             
-                            # Get slot data based on storage type
                             if from_type == 'inventory':
                                 from_data = self.game.player.inventory.get_slot(from_index)
-                            else:  # hotbar
+                            else:
                                 from_data = self.game.player.hotbar.get_slot(from_index)
                             
                             if to_type == 'inventory':
                                 to_data = self.game.player.inventory.get_slot(to_index)
-                            else:  # hotbar
+                            else:
                                 to_data = self.game.player.hotbar.get_slot(to_index)
                             
-                            # If both slots have the same item, try to stack
                             if from_data and to_data and from_data["item_id"] == to_data["item_id"]:
                                 if not self.game.inventory_ui.stack_items(from_info, to_info):
-                                    # If stacking failed (full), swap instead
                                     self.game.inventory_ui.swap_slots(from_info, to_info)
                             else:
-                                # Different items or one empty - just swap
                                 self.game.inventory_ui.swap_slots(from_info, to_info)
-            
-            # EXIT GREENHOUSE
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
-                self.save_soil_state()
-                self.state_machine.change_state("level", return_pos=self.return_pos)
 
     def refill_oxygen(self, dt):
         self.game.player.refill_oxygen(40 * dt)
@@ -309,26 +281,21 @@ class GreenhouseState:
     def run(self, dt):
         self.screen.fill("black")
 
-        # Update inventory UI hover state
         if self.game.inventory_ui:
             self.game.inventory_ui.update()
 
-        # Block player input when inventory or chest is open
         if self.game.inventory_ui.visible or (self.chest_ui and self.chest_ui.visible):
             self.game.player.block_input()
         else:
             self.game.player.unblock_input()
 
-        # Update player
         self.game.player.update(dt, self.collision_sprites)
 
-        # Handle tool events from player
         events = self.game.player.consume_events()
         for event_data in events:
             event_type = event_data[0]
             pos = event_data[1]
             
-            # For planting, pass the seed_id
             if event_type == 'plant':
                 if len(event_data) > 2:
                     seed_id = event_data[2]
@@ -338,34 +305,30 @@ class GreenhouseState:
             else:
                 self.soil_layer.handle_event(event_type, pos)
 
-        # Refill oxygen
         self.refill_oxygen(dt)
         self.hunger_system.update(self.game.player, dt)
 
-        # Update soil tiles
         self.soil_sprites.update()
-
-        # Draw soil below player
+        for soil in self.soil_sprites:
+            if soil.plant:
+                soil.plant.update()
         self.draw_soil()
-
-        # Update camera offset (smart centering or following)
         self.update_camera_offset()
 
-        # Draw world with updated offset
         sprites = sorted(
             self.all_sprites.sprites(),
             key=lambda spr: (spr.z_index, spr.rect.centery)
         )
-
         for sprite in sprites:
             offset_rect = sprite.rect.move(-self.all_sprites.offset.x, -self.all_sprites.offset.y)
             self.screen.blit(sprite.image, offset_rect)
 
+        # --- Interaction zone detection ---
         self.near_chest = False
         self.near_chest_index = None
-        self.chest_zones = [
-            z for z in self.interaction_zones if z.name == "chest"
-        ]
+        self.near_exit = False
+
+        self.chest_zones = [z for z in self.interaction_zones if z.name == "chest"]
 
         for i, zone in enumerate(self.chest_zones):
             if zone.rect.colliderect(self.game.player.hitbox):
@@ -375,11 +338,18 @@ class GreenhouseState:
                 break
 
         if not self.near_chest:
+            # Check exit zone
+            for zone in self.interaction_zones:
+                if zone.name == "exit" and zone.rect.colliderect(self.game.player.hitbox):
+                    self.near_exit = True
+                    self.game.interaction_prompt.show("Press E to Exit")
+                    break
+
+        if not self.near_chest and not self.near_exit:
             self.game.interaction_prompt.hide()
 
         if self.chest_ui and self.chest_ui.visible:
             self.chest_ui.draw()
         
-        # Draw hotbar (if visible and not in chest UI)
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.draw()
