@@ -91,7 +91,7 @@ class IronOreCounterUI(UIElement):
         self.screen  = screen
         self.visible = True
 
-        self.font = ui_config.get_font(18)
+        self.font = ui_config.get_font(15)
 
         # Match DayUI width so they align cleanly
         self.panel_width  = 250
@@ -171,6 +171,13 @@ class IronOreCounterUI(UIElement):
         text_surf = self.font.render(display, True, color)
         text_rect = text_surf.get_rect(midleft=(text_x, y + self.panel_height // 2))
         self.screen.blit(text_surf, text_rect)
+
+        # Show build hint to the right of the counter when goal is met
+        if count >= self.GOAL:
+            hint_font = ui_config.get_font(12)
+            hint_surf = hint_font.render("Press 'B'", True, (80, 220, 80))
+            hint_rect = hint_surf.get_rect(midleft=(text_rect.right + 10, y + self.panel_height // 2))
+            self.screen.blit(hint_surf, hint_rect)
 
 
 class HotbarUI:
