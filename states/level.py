@@ -300,9 +300,8 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = SleepState.ASLEEP
-
-        if not self.game.day_cycle.day_advanced:
-            self.game.day_cycle.try_advance_day("sleep")
+        self.game.day_cycle.reset_cycle()
+        self.game.day_cycle.try_advance_day("sleep")
 
         # Advance crops in all greenhouses
         for greenhouse in self.game.greenhouse_data.values():
@@ -440,14 +439,7 @@ class LevelState:
         print("[METEOR] Failed to find a valid spawn position after 15 attempts")
 
     def _is_valid_meteor_spawn(self, meteor_rect, meteor_mask):
-        """Return True if meteor_rect is a valid spawn location.
-
-        Parameters
-        ----------
-        meteor_mask : pygame.mask.Mask
-            Pre-built filled mask matching meteor_rect.size — passed in so we
-            don't allocate a new one on every obstacle check.
-        """
+        """Return True if meteor_rect is a valid spawn location"""
         # Keep a safe distance from the player
         player_center = pygame.Vector2(self.game.player.rect.center)
         meteor_center = pygame.Vector2(meteor_rect.center)
