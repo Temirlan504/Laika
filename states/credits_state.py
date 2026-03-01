@@ -33,23 +33,7 @@ class CreditsState:
             "",
             "",
             ("A game by", "header"),
-            ("Your Name", "credit"),
-            "",
-            "",
-            ("Programming", "header"),
-            ("Your Name", "credit"),
-            "",
-            ("Art & Design", "header"),
-            ("Your Name", "credit"),
-            "",
-            ("Sound & Music", "header"),
-            ("Your Name", "credit"),
-            "",
-            "",
-            ("Special Thanks", "header"),
-            ("Claude AI", "credit"),
-            ("Pygame Community", "credit"),
-            ("Coffee", "credit"),
+            ("Temirlan Yergazy (Obelus)", "credit"),
             "",
             "",
             ("Built with", "header"),
@@ -81,7 +65,7 @@ class CreditsState:
         
         # THE END display
         self.the_end_timer = 0
-        self.the_end_duration = 3.0  # Show THE END for 3 seconds
+        self.the_end_duration = 30.0  # Show THE END for 3 seconds
         self.the_end_alpha = 0
         self.the_end_fade_speed = 150  # Alpha per second
     
