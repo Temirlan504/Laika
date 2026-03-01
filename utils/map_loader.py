@@ -140,6 +140,12 @@ class MapLoader:
                         obj.x * SCALE + (obj.width * SCALE) / 2,
                         obj.y * SCALE + (obj.height * SCALE) / 2
                     )
+                elif obj.name == 'starter_greenhouse':
+                    self.starter_greenhouse_pos = (
+                        obj.x * SCALE + (obj.width * SCALE) / 2,
+                        obj.y * SCALE + (obj.height * SCALE) / 2
+                    )
+                    print(f"Starter greenhouse position: {self.starter_greenhouse_pos}")
 
         # ---- Interaction zones (generic: chest, doors, etc) ----
         if self.has_layer('interaction_zones'):

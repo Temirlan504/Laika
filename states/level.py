@@ -14,11 +14,13 @@ from building.door import DoorInteractionZone
 from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
+from ui.hud import IronOreCounterUI
 
 
 class LevelState:
     # --- Class-level constants ---
-    LAST_SOL = 300
+    LAST_SOL       = 300
+    DOME_IRON_COST = 50             # Iron ore required to place a greenhouse dome
 
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
@@ -64,9 +66,11 @@ class LevelState:
         self.interaction_zones = pygame.sprite.Group()
         self.dynamic_sprites = pygame.sprite.Group()
 
-        # Load greenhouse image
+        # Load greenhouse image — kept as an instance attribute so _spawn_dome
+        # can reuse it without reloading from disk each time.
         dome_image = pygame.image.load("assets/dome.png").convert_alpha()
         dome_image = pygame.transform.scale(dome_image, (612, 429))
+        self._dome_image = dome_image
         self.preview = DomePreview(dome_image)
 
         # Cached player hitbox mask for build-mode collision (rebuilt on resize)
@@ -79,6 +83,9 @@ class LevelState:
         # Player stats
         self.oxygen_system = OxygenSystem()
         self.hunger_system = HungerSystem()
+
+        # HUD: iron ore counter
+        self.iron_ore_counter = IronOreCounterUI(self.game.player, self.screen)
 
         self.setup_level()
 
@@ -102,7 +109,6 @@ class LevelState:
         self.screen = self.game.screen
         self.fade_effect.on_resize(self.screen)
         self.night_overlay.on_resize(self.screen)
-        # Player hitbox size may have changed
         self._player_hitbox_mask = None
 
     def setup_level(self):
@@ -126,6 +132,42 @@ class LevelState:
 
         self.all_sprites.add(self.game.player)
         self.dynamic_sprites.add(self.game.player)
+
+        # Spawn the free starter greenhouse only on a fresh game.
+        # Position comes from the 'starter_greenhouse' marker in Tiled (markers layer).
+        # When loading a save, _pending_buildings is already set so we skip to avoid
+        # double-spawning — the save's building list handles it instead.
+        if not hasattr(self.game, '_pending_buildings'):
+            pos = self.game_map.starter_greenhouse_pos
+            if pos:
+                self._spawn_dome(pos)
+            else:
+                print("[WARN] No 'starter_greenhouse' marker found in Tiled markers layer!")
+
+    def _spawn_dome(self, center_pos):
+        """Spawn a greenhouse dome at center_pos and register its door zone.
+        Shared by the starter dome and player-built domes."""
+        # Ensure greenhouse_data exists (may not yet during setup_level on fresh start)
+        if not hasattr(self.game, 'greenhouse_data'):
+            self.game.greenhouse_data = {}
+
+        dome = GreenhouseDome(
+            center_pos=center_pos,
+            image=self._dome_image,
+            groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
+        )
+        print(f"[DOME] Spawned at {center_pos}, rect.center={dome.rect.center}, id={dome.greenhouse_id}")
+
+        if dome.greenhouse_id not in self.game.greenhouse_data:
+            self.game.greenhouse_data[dome.greenhouse_id] = {"soil": {}}
+
+        door_world_pos = pygame.Vector2(dome.rect.center) + dome.door_offset
+        door_rect = pygame.Rect(0, 0, 96, 48)
+        door_rect.center = door_world_pos
+
+        zone = DoorInteractionZone(rect=door_rect, owner=dome, text="Press E to Enter")
+        self.interaction_zones.add(zone)
+        return dome
 
     def on_enter(self, return_pos=None, **kwargs):
         if not self.game.player:
@@ -251,20 +293,8 @@ class LevelState:
     def _handle_build_click(self):
         if not self.preview.valid:
             return
-        dome = GreenhouseDome(
-            center_pos=self.preview.rect.center,
-            image=self.preview.base_image,
-            groups=[self.all_sprites, self.collision_sprites, self.dome_sprites]
-        )
-        if dome.greenhouse_id not in self.game.greenhouse_data:
-            self.game.greenhouse_data[dome.greenhouse_id] = {"soil": {}}
-
-        door_world_pos = pygame.Vector2(dome.rect.center) + dome.door_offset
-        door_rect = pygame.Rect(0, 0, 96, 48)
-        door_rect.center = door_world_pos
-
-        zone = DoorInteractionZone(rect=door_rect, owner=dome, text="Press E to Enter")
-        self.interaction_zones.add(zone)
+        self._consume_iron_ore()
+        self._spawn_dome(self.preview.rect.center)
 
     def _resolve_inventory_drag(self, from_info, to_info):
         """Stack or swap two inventory/hotbar slots after a drag-and-drop."""
@@ -303,20 +333,16 @@ class LevelState:
         self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
 
-        # Advance crops in all greenhouses
         for greenhouse in self.game.greenhouse_data.values():
             for data in greenhouse['soil'].values():
                 if data['plant']:
                     data['plant'].grow_to_final()
 
-        # Auto-save after sleeping
         self.game.save_manager.auto_save(self.game)
 
         self.game.clock_system.set_time(6, 0)
         self.game.day_cycle.reset_cycle()
 
-        # Check ending *before* queuing the fade-in so we never fire
-        # on_fade_in_complete inside the ending scene.
         if self.check_ending_trigger():
             return
 
@@ -388,8 +414,37 @@ class LevelState:
             self._player_hitbox_mask.fill()
         return self._player_hitbox_mask
 
+    def _has_enough_iron_ore(self):
+        """Return True if the player holds at least DOME_IRON_COST iron ore."""
+        inv_total = self.game.player.inventory.get_total("iron_ore")
+        hotbar_total = sum(
+            slot["quantity"]
+            for slot in self.game.player.hotbar.slots
+            if slot and slot["item_id"] == "iron_ore"
+        )
+        return (inv_total + hotbar_total) >= self.DOME_IRON_COST
+
+    def _consume_iron_ore(self):
+        """Remove DOME_IRON_COST iron ore (hotbar first, then inventory)."""
+        remaining = self.DOME_IRON_COST
+
+        for i, slot in enumerate(self.game.player.hotbar.slots):
+            if remaining <= 0:
+                break
+            if slot and slot["item_id"] == "iron_ore":
+                taken = min(slot["quantity"], remaining)
+                slot["quantity"] -= taken
+                remaining -= taken
+                if slot["quantity"] == 0:
+                    self.game.player.hotbar.slots[i] = None
+
+        if remaining > 0:
+            self.game.player.inventory.remove_item("iron_ore", remaining)
+
     def can_place_dome(self, preview, obstacles):
-        # Check against player
+        if not self._has_enough_iron_ore():
+            return False
+
         if preview.rect.colliderect(self.game.player.hitbox):
             offset = (
                 self.game.player.hitbox.x - preview.rect.x,
@@ -414,19 +469,13 @@ class LevelState:
         if len(self.meteorites) >= self.max_meteorites or not self.ground_positions:
             return
 
-        # Build the meteor mask once per spawn attempt
         meteor_size = (TILE_SIZE, TILE_SIZE)
         meteor_mask = pygame.mask.Mask(meteor_size)
         meteor_mask.fill()
 
         for attempt in range(15):
             pos = random.choice(self.ground_positions)
-            spawn_x = pos[0] + TILE_SIZE // 2
-            spawn_y = pos[1] + TILE_SIZE // 2
-
-            meteor_spawn_rect = pygame.Rect(
-                pos[0], pos[1], TILE_SIZE, TILE_SIZE
-            )
+            meteor_spawn_rect = pygame.Rect(pos[0], pos[1], TILE_SIZE, TILE_SIZE)
 
             if self._is_valid_meteor_spawn(meteor_spawn_rect, meteor_mask):
                 Meteorite(
@@ -439,14 +488,12 @@ class LevelState:
         print("[METEOR] Failed to find a valid spawn position after 15 attempts")
 
     def _is_valid_meteor_spawn(self, meteor_rect, meteor_mask):
-        """Return True if meteor_rect is a valid spawn location"""
-        # Keep a safe distance from the player
+        """Return True if meteor_rect is a valid spawn location."""
         player_center = pygame.Vector2(self.game.player.rect.center)
         meteor_center = pygame.Vector2(meteor_rect.center)
         if player_center.distance_to(meteor_center) < TILE_SIZE * 3:
             return False
 
-        # Don't spawn on domes
         for dome in self.dome_sprites:
             if meteor_rect.colliderect(dome.rect):
                 if hasattr(dome, 'mask') and dome.mask:
@@ -454,7 +501,6 @@ class LevelState:
                     if meteor_mask.overlap(dome.mask, offset):
                         return False
 
-        # Don't spawn on other collision objects
         meteorite_set = set(self.meteorites)
         dome_set = set(self.dome_sprites)
         for sprite in self.collision_sprites:
@@ -468,7 +514,6 @@ class LevelState:
                 else:
                     return False
 
-        # Keep meteorites spread out
         min_dist_sq = (TILE_SIZE * 2) ** 2
         for meteor in self.meteorites:
             dx = meteor.rect.centerx - meteor_rect.centerx
@@ -537,11 +582,9 @@ class LevelState:
             if self.game.inventory_ui:
                 self.game.inventory_ui.update()
 
-            # Update all active plants (flat list — no nested dict walk)
             for plant in self._active_plants:
                 plant.update()
 
-            # Meteor spawning
             self.meteor_spawn_timer.update()
             if self.meteor_spawn_timer.deactivate:
                 if len(self.meteorites) < self.max_meteorites:
@@ -580,3 +623,5 @@ class LevelState:
 
         if hasattr(self.game, 'hotbar_ui'):
             self.game.hotbar_ui.draw()
+
+        self.iron_ore_counter.draw()

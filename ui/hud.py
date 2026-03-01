@@ -76,6 +76,103 @@ class DayUI(UIElement):
         self.screen.blit(time_surface, time_rect)
 
 
+# ---------------------------------------------------------------------------
+# Iron Ore Counter
+# ---------------------------------------------------------------------------
+
+class IronOreCounterUI(UIElement):
+    GOAL        = 50    # Iron ore required to place a greenhouse dome
+    CAP_DISPLAY = 99    # Maximum number shown before switching to "99+"
+    IMAGE_PATH  = "assets/items/resources/iron_ore.png"
+
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player  = player
+        self.screen  = screen
+        self.visible = True
+
+        self.font = ui_config.get_font(18)
+
+        # Match DayUI width so they align cleanly
+        self.panel_width  = 250
+        self.panel_height = 40
+
+        # Load and scale ore icon to fit inside the bar
+        self._icon  = None
+        icon_size   = self.panel_height - 8   # 4 px padding top and bottom
+        if os.path.exists(self.IMAGE_PATH):
+            try:
+                raw        = pygame.image.load(self.IMAGE_PATH).convert_alpha()
+                self._icon = pygame.transform.scale(raw, (icon_size, icon_size))
+            except Exception as e:
+                print(f"[IRON_ORE_UI] Failed to load icon: {e}")
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get_count(self):
+        """Return total iron ore held across inventory and hotbar."""
+        inv_total = self.player.inventory.get_total("iron_ore")
+
+        # Hotbar has no get_total, so we sum slots directly
+        hotbar_total = sum(
+            slot["quantity"]
+            for slot in self.player.hotbar.slots
+            if slot and slot["item_id"] == "iron_ore"
+        )
+        return inv_total + hotbar_total
+
+    def has_enough(self):
+        """Return True if the player can afford to place a dome."""
+        return self._get_count() >= self.GOAL
+
+    # ------------------------------------------------------------------
+    # Draw
+    # ------------------------------------------------------------------
+
+    def draw(self):
+        if not self.visible:
+            return
+
+        count = self._get_count()
+
+        # Sit directly below DayUI: DayUI is at y=20 with height=100, plus a
+        # small 10 px gap → y = 130.
+        x = self.screen.get_width() - self.panel_width - 20
+        y = 130
+
+        # --- Background ---
+        bg_rect = pygame.Rect(x, y, self.panel_width, self.panel_height)
+        pygame.draw.rect(self.screen, (30, 30, 30), bg_rect)
+        pygame.draw.rect(self.screen, (100, 100, 100), bg_rect, 2)
+
+        # --- Icon (or orange fallback square) ---
+        icon_h   = self._icon.get_height() if self._icon else 24
+        icon_x   = x + 8
+        icon_y   = y + (self.panel_height - icon_h) // 2
+
+        if self._icon:
+            self.screen.blit(self._icon, (icon_x, icon_y))
+            text_x = icon_x + self._icon.get_width() + 8
+        else:
+            pygame.draw.rect(self.screen, (200, 120, 30),
+                             pygame.Rect(icon_x, icon_y, 24, 24))
+            text_x = icon_x + 32
+
+        # --- Counter text ---
+        if count > self.CAP_DISPLAY:
+            display = f"99+/{self.GOAL}"
+        else:
+            display = f"{count}/{self.GOAL}"
+
+        # Green once goal is met, white otherwise
+        color     = (80, 220, 80) if count >= self.GOAL else ui_config.WHITE
+        text_surf = self.font.render(display, True, color)
+        text_rect = text_surf.get_rect(midleft=(text_x, y + self.panel_height // 2))
+        self.screen.blit(text_surf, text_rect)
+
+
 class HotbarUI:
     def __init__(self, screen, hotbar):
         self.screen = screen
@@ -118,15 +215,12 @@ class HotbarUI:
         self.qty_font = ui_config.get_font(12)
 
     def show(self):
-        """Show the hotbar"""
         self.visible = True
     
     def hide(self):
-        """Hide the hotbar"""
         self.visible = False
     
     def get_position(self):
-        """Calculate hotbar position (bottom center)"""
         x = (self.screen.get_width() - self.hotbar_width) // 2
         y = self.screen.get_height() - self.hotbar_height - self.padding_bottom
         return x, y
@@ -139,51 +233,40 @@ class HotbarUI:
         offset_x = -20
         offset_y = -5
         
-        # Draw background (image or fallback)
         if self.bg_image:
             self.screen.blit(self.bg_image, (x + offset_x, y + offset_y))
         else:
-            # Fallback: semi-transparent panel
             bg_surface = pygame.Surface((self.hotbar_width, self.hotbar_height), pygame.SRCALPHA)
             bg_surface.fill(self.bg_color)
             self.screen.blit(bg_surface, (x + offset_x, y + offset_y))
         
-        # Draw each hotbar slot
         for i in range(self.hotbar.num_slots):
             slot_x = x + i * (self.slot_size + self.slot_gap)
-            slot_y = y + 10  # Offset for number at top
+            slot_y = y + 10
             
             slot_rect = pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
             
-            # Only draw slot backgrounds if no image (image has slots built-in)
             if not self.bg_image:
-                # Draw slot background
                 pygame.draw.rect(self.screen, self.slot_color, slot_rect)
             
-            # Highlight selected slot (always draw this on top)
             if i == self.hotbar.selected_slot:
                 pygame.draw.rect(self.screen, self.selected_color, slot_rect, 3)
             elif not self.bg_image:
-                # Only draw borders if no background image
                 pygame.draw.rect(self.screen, self.border_color, slot_rect, 2)
             
-            # Draw slot number (1-9)
             number_text = self.number_font.render(str(i + 1), True, ui_config.WHITE)
             number_rect = number_text.get_rect(centerx=slot_rect.centerx, bottom=slot_rect.top - 2)
             self.screen.blit(number_text, number_rect)
             
-            # Draw item in slot
             slot_data = self.hotbar.get_slot(i)
             if slot_data:
                 self.draw_item_in_slot(slot_data, slot_rect)
     
     def draw_item_in_slot(self, slot, rect):
-        """Draw an item inside a hotbar slot"""
         item = get_item(slot["item_id"])
         if not item:
             return
         
-        # Try to load item sprite
         item_image = None
         item_id = slot['item_id']
         
@@ -206,24 +289,19 @@ class HotbarUI:
                     print(f"[HOTBAR] Error loading {path}: {e}")
         
         if item_image:
-            # Draw item image centered
             image_rect = item_image.get_rect(center=rect.center)
             self.screen.blit(item_image, image_rect)
         else:
-            # Fallback: draw item name
             name_font = ui_config.get_font(10)
-            name_text = item.name[:6]  # Truncate long names
+            name_text = item.name[:6]
             name = name_font.render(name_text, True, ui_config.WHITE)
             name_rect = name.get_rect(center=rect.center)
             self.screen.blit(name, name_rect)
         
-        # Draw quantity in bottom-right corner
         if slot["quantity"] > 1:
             qty_text = str(slot["quantity"])
             qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
             qty_shadow = self.qty_font.render(qty_text, True, (0, 0, 0))
-            
-            # Draw shadow for better visibility
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
 
@@ -235,17 +313,14 @@ class HealthBarUI(UIElement):
         self.screen = screen
         self.visible = True
         
-        # Bar dimensions
         self.bar_width = 200
         self.bar_height = 30
         self.padding = 5
         
-        # Colors
         self.bg_color = (40, 40, 40)
-        self.bar_color = (220, 50, 50)  # Red
+        self.bar_color = (220, 50, 50)
         self.border_color = (100, 100, 100)
         
-        # Font
         self.font = ui_config.get_font(12)
 
     def show(self):
@@ -258,25 +333,20 @@ class HealthBarUI(UIElement):
         if not self.visible:
             return
         
-        # Position below day/time UI (top-right)
         x = self.screen.get_width() - self.bar_width - 20
-        y = 130
+        y = 180  # shifted down 50px to make room for IronOreCounterUI
         
-        # Draw background
         bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
         pygame.draw.rect(self.screen, self.bg_color, bg_rect)
         
-        # Draw health bar (fill based on current health)
         health_percent = self.player.current_health / self.player.max_health
         fill_width = int((self.bar_width - self.padding * 2) * health_percent)
         fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
                                 fill_width, self.bar_height - self.padding * 2)
         pygame.draw.rect(self.screen, self.bar_color, fill_rect)
         
-        # Draw border
         pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
         
-        # Draw text (HP: 100/100)
         text = f"HP: {int(self.player.current_health)}/{int(self.player.max_health)}"
         text_surface = self.font.render(text, True, ui_config.WHITE)
         text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
@@ -290,17 +360,14 @@ class OxygenBarUI(UIElement):
         self.screen = screen
         self.visible = True
         
-        # Bar dimensions
         self.bar_width = 200
         self.bar_height = 30
         self.padding = 5
         
-        # Colors
         self.bg_color = (40, 40, 40)
-        self.bar_color = (50, 150, 220)  # Blue
+        self.bar_color = (50, 150, 220)
         self.border_color = (100, 100, 100)
         
-        # Font
         self.font = ui_config.get_font(12)
 
     def show(self):
@@ -313,25 +380,20 @@ class OxygenBarUI(UIElement):
         if not self.visible:
             return
         
-        # Position below health bar
         x = self.screen.get_width() - self.bar_width - 20
-        y = 170
+        y = 220  # shifted down 50px to make room for IronOreCounterUI
         
-        # Draw background
         bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
         pygame.draw.rect(self.screen, self.bg_color, bg_rect)
         
-        # Draw oxygen bar (fill based on current oxygen)
         oxygen_percent = self.player.current_oxygen / self.player.max_oxygen
         fill_width = int((self.bar_width - self.padding * 2) * oxygen_percent)
         fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
                                 fill_width, self.bar_height - self.padding * 2)
         pygame.draw.rect(self.screen, self.bar_color, fill_rect)
         
-        # Draw border
         pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
         
-        # Draw text (O2: 100/100)
         text = f"O2: {int(self.player.current_oxygen)}/{int(self.player.max_oxygen)}"
         text_surface = self.font.render(text, True, ui_config.WHITE)
         text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
@@ -345,17 +407,14 @@ class HungerBarUI(UIElement):
         self.screen = screen
         self.visible = True
         
-        # Bar dimensions
         self.bar_width = 200
         self.bar_height = 30
         self.padding = 5
         
-        # Colors
         self.bg_color = (40, 40, 40)
-        self.bar_color = (220, 180, 50)  # Yellow/Orange
+        self.bar_color = (220, 180, 50)
         self.border_color = (100, 100, 100)
         
-        # Font
         self.font = ui_config.get_font(12)
 
     def show(self):
@@ -368,25 +427,20 @@ class HungerBarUI(UIElement):
         if not self.visible:
             return
         
-        # Position below oxygen bar
         x = self.screen.get_width() - self.bar_width - 20
-        y = 210
+        y = 260  # shifted down 50px to make room for IronOreCounterUI
         
-        # Draw background
         bg_rect = pygame.Rect(x, y, self.bar_width, self.bar_height)
         pygame.draw.rect(self.screen, self.bg_color, bg_rect)
         
-        # Draw hunger bar (fill based on current hunger)
         hunger_percent = self.player.current_hunger / self.player.max_hunger
         fill_width = int((self.bar_width - self.padding * 2) * hunger_percent)
         fill_rect = pygame.Rect(x + self.padding, y + self.padding, 
                                 fill_width, self.bar_height - self.padding * 2)
         pygame.draw.rect(self.screen, self.bar_color, fill_rect)
         
-        # Draw border
         pygame.draw.rect(self.screen, self.border_color, bg_rect, 2)
         
-        # Draw text (Hunger: 100/100)
         text = f"Hunger: {int(self.player.current_hunger)}/{int(self.player.max_hunger)}"
         text_surface = self.font.render(text, True, ui_config.WHITE)
         text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
