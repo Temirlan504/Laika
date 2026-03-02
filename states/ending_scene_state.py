@@ -2,11 +2,6 @@ import pygame
 from utils.fade_effect import FadeEffect
 
 class EndingSceneState:
-    """
-    Cinematic ending scene where the player lies down and the screen fades to black.
-    Triggers when the player reaches the final day (LAST_SOL).
-    """
-    
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
         self.game = game

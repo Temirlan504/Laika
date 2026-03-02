@@ -19,8 +19,8 @@ from ui.hud import IronOreCounterUI
 
 class LevelState:
     # --- Class-level constants ---
-    LAST_SOL       = 300
-    DOME_IRON_COST = 50             # Iron ore required to place a greenhouse dome
+    LAST_SOL = 300
+    DOME_IRON_COST = 50
 
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
@@ -308,6 +308,7 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = SleepState.ASLEEP
+        # Advance the day exactly once for sleeping
         self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
 
@@ -318,8 +319,8 @@ class LevelState:
 
         self.game.save_manager.auto_save(self.game)
 
+        # Set time to 6 AM
         self.game.clock_system.set_time(6, 0)
-        self.game.day_cycle.reset_cycle()
 
         if self.check_ending_trigger():
             return
