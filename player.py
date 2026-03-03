@@ -144,7 +144,7 @@ class Player(pygame.sprite.Sprite):
     def eat_food(self, item_id):
         """Eat food from hotbar"""
         # Check if hunger is already full
-        if self.current_hunger >= self.max_hunger:
+        if self.current_hunger >= 97:
             print(f"[PLAYER] You're not hungry!")
             return False
         

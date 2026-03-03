@@ -49,7 +49,7 @@ class Meteorite(pygame.sprite.Sprite):
     # Class variable to cache the meteor image (load once, use many times)
     _meteor_image = None
     
-    def __init__(self, pos, groups):
+    def __init__(self, pos, groups, z_index=2):
         super().__init__(groups)
 
         # Load meteor image (cached)
@@ -75,7 +75,7 @@ class Meteorite(pygame.sprite.Sprite):
         self.image = Meteorite._meteor_image.copy()
         self.rect = self.image.get_rect(topleft=pos)
         self.mask = pygame.mask.from_surface(self.image)
-        self.z_index = LAYERS.get('main', 2)
+        self.z_index = z_index
 
         self.hp = 3  # hits to break
         

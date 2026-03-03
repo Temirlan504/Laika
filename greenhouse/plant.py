@@ -10,9 +10,9 @@ class Plant:
 
         # Growth timing configuration (in milliseconds)
         self.growth_config = {
-            'potato': 15000,   # 15 seconds total to grow
-            'tomato': 20000,   # 20 seconds total to grow
-            'carrot': 10000    # 10 seconds total to grow
+            'potato': 150000,   # 150 seconds total to grow
+            'tomato': 200000,   # 200 seconds total to grow
+            'carrot': 100000    # 100 seconds total to grow
         }
         
         # Get milliseconds per stage for this plant type

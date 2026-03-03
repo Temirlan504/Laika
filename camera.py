@@ -48,19 +48,15 @@ class CameraGroup(pygame.sprite.Group):
     # ------------------------------------------------------------------
     def custom_draw(self):
         self.update_offset()
+        current_sprites = self.sprites()
 
-        # Static sprites (tiles) are sorted once; dynamic sprites (player,
-        # meteorites) are re-inserted at the correct depth each frame so
-        # centery-based draw order stays correct as things move.
-        if self._dirty:
-            # Full rebuild when sprites are added or removed
+        if self._dirty or len(self._sorted_cache) != len(current_sprites):
             self._sorted_cache = sorted(
-                self.sprites(),
+                current_sprites,
                 key=lambda spr: (spr.z_index, spr.rect.centery)
             )
             self._dirty = False
         else:
-            # Re-sort only the dynamic sprites in-place each frame
             self._sorted_cache.sort(key=lambda spr: (spr.z_index, spr.rect.centery))
 
         # Visible screen rect in world space — used for culling
