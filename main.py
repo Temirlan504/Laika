@@ -18,10 +18,13 @@ from ui.hud import DayUI, HealthBarUI, HotbarUI, HungerBarUI, OxygenBarUI
 from ui.interaction_ui import InteractionPrompt
 from ui.inventory_ui import InventoryUI
 from player import Player
+from systems.music_system import AmbientMusicSystem
 
 class Game:
     def __init__(self):
         pygame.init()
+        pygame.mixer.init()
+        self.music_system = AmbientMusicSystem()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
         pygame.display.set_caption("Laika: Space Adventure")
         self.clock = pygame.time.Clock()
@@ -98,6 +101,9 @@ class Game:
     def run(self):
         while True:
             dt = self.clock.tick(FPS) / 1000
+
+            # Update ambient music system
+            self.music_system.update()
 
             # Handle quitting the game
             events = pygame.event.get()

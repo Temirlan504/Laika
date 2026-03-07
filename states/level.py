@@ -21,6 +21,7 @@ class LevelState:
     # --- Class-level constants ---
     LAST_SOL = 300
     DOME_IRON_COST = 50
+    MAX_DOMES = 15
 
     def __init__(self, state_machine, game):
         self.state_machine = state_machine
@@ -37,7 +38,7 @@ class LevelState:
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
-        self.max_meteorites = 50
+        self.max_meteorites = 30
         self.meteor_spawn_timer = Timer(10000)
         self.meteor_spawn_timer.activate()
 
@@ -269,8 +270,13 @@ class LevelState:
                     break
 
     def _handle_build_click(self):
+        if len(self.dome_sprites) >= self.MAX_DOMES:
+            print("Maximum number of greenhouses reached")
+            return
+
         if not self.preview.valid:
             return
+
         self._consume_iron_ore()
         self._spawn_dome(self.preview.rect.center)
 
@@ -308,6 +314,8 @@ class LevelState:
 
     def on_fade_out_complete(self):
         self.sleep_state = SleepState.ASLEEP
+        self.game.music_system.stop()  # Stop music immediately on sleep
+
         # Advance the day exactly once for sleeping
         self.game.day_cycle.reset_cycle()
         self.game.day_cycle.try_advance_day("sleep")
@@ -348,6 +356,7 @@ class LevelState:
 
     def on_fade_in_complete(self):
         self.sleep_state = SleepState.AWAKE
+        self.game.music_system.resume()  # Resume ambient music on wake
         self.game.player.unblock_input()
 
     # ------------------------------------------------------------------
