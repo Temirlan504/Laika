@@ -1,7 +1,7 @@
 class HungerSystem:
     def __init__(self):
-        self.drain_rate = 0.3     # hunger per second
-        self.starve_damage = 1  # health per second
+        self.drain_rate = 0.2   # hunger per second
+        self.starve_damage = 0.7  # health per second
 
     def update(self, player, dt):
         # Drain hunger

@@ -9,6 +9,10 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, pos, group):
         super().__init__(group)
         self.import_assets()
+
+        self._load_sounds()
+        self._footstep_index = 0
+
         self.status = 'down_idle'
         self.frame_index = 0
         self.events = []
@@ -50,6 +54,16 @@ class Player(pygame.sprite.Sprite):
         self.selected_tool = 'pickaxe'
         self.selected_seed = 'potato_seed'  # Track which seed to plant
         self.tool_ray_length = 32
+    
+    def _load_sounds(self):
+        self.sounds = {}
+        for i in range(1, 4):  # adjust range to however many you have
+            try:
+                sound = pygame.mixer.Sound(f"assets/sounds/footstep_{i}.ogg")
+                sound.set_volume(0.4)
+                self.sounds[f'footstep_{i}'] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load footstep_{i}: {e}")
 
     def _give_starter_items(self):
         """Give player starting items - called once on initialization"""
@@ -261,10 +275,26 @@ class Player(pygame.sprite.Sprite):
 
     def animate(self, dt):
         self.animation_speed = 10
+        prev_frame = int(self.frame_index)
         self.frame_index += self.animation_speed * dt
         if self.frame_index >= len(self.animations[self.status]):
             self.frame_index = 0
         self.image = self.animations[self.status][int(self.frame_index)]
+
+        # Play footstep when a new frame is hit during walking (not idle, not tool use)
+        variants = [s for k, s in self.sounds.items() if k.startswith('footstep') and s is not None]
+        is_walking = (
+            self.direction.magnitude() > 0
+            and '_idle' not in self.status
+            and not self.timers['tool_use_lmb'].active
+            and not self.timers['tool_use_rmb'].active
+        )
+        current_frame = int(self.frame_index)
+
+        if is_walking and current_frame != prev_frame and current_frame % 2 == 0:
+            if variants:
+                variants[self._footstep_index % len(variants)].play()
+                self._footstep_index += 1
 
     def block_input(self):
         self.input_blocked = True
