@@ -66,7 +66,7 @@ class Player(pygame.sprite.Sprite):
             except Exception as e:
                 print(f"[SOUND] Could not load footstep_{i}: {e}")
 
-        for i in range(1, 3):
+        for i in range(1, 2):
             try:
                 sound = pygame.mixer.Sound(f"assets/sounds/mining_{i}.ogg")
                 sound.set_volume(0.4)
