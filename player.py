@@ -12,6 +12,7 @@ class Player(pygame.sprite.Sprite):
 
         self._load_sounds()
         self._footstep_index = 0
+        self._mining_index = 0
 
         self.status = 'down_idle'
         self.frame_index = 0
@@ -57,13 +58,21 @@ class Player(pygame.sprite.Sprite):
     
     def _load_sounds(self):
         self.sounds = {}
-        for i in range(1, 4):  # adjust range to however many you have
+        for i in range(1, 4):
             try:
                 sound = pygame.mixer.Sound(f"assets/sounds/footstep_{i}.ogg")
                 sound.set_volume(0.4)
                 self.sounds[f'footstep_{i}'] = sound
             except Exception as e:
                 print(f"[SOUND] Could not load footstep_{i}: {e}")
+
+        for i in range(1, 3):
+            try:
+                sound = pygame.mixer.Sound(f"assets/sounds/mining_{i}.ogg")
+                sound.set_volume(0.4)
+                self.sounds[f'mining_{i}'] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load mining_{i}: {e}")
 
     def _give_starter_items(self):
         """Give player starting items - called once on initialization"""

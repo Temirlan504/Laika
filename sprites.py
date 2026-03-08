@@ -99,12 +99,14 @@ class Meteorite(pygame.sprite.Sprite):
     def mine(self, player):
         """Player mines this meteorite"""
         self.hp -= 1
-        
-        # Visual feedback - flash the sprite when hit
         self._flash()
+
+        mining_sounds = [s for k, s in player.sounds.items() if k.startswith('mining') and s is not None]
+        if mining_sounds:
+            mining_sounds[player._mining_index % len(mining_sounds)].play()
+            player._mining_index += 1
         
         if self.hp <= 0:
-            # Drop 1-3 iron ore
             amount = random.randint(1, 3)
             player.add_item("iron_ore", amount)
             print(f"Meteorite destroyed! Collected {amount} iron ore")
@@ -118,5 +120,3 @@ class Meteorite(pygame.sprite.Sprite):
         flash_surface = self.image.copy()
         flash_surface.fill((255, 255, 255, 100), special_flags=pygame.BLEND_RGBA_ADD)
         self.image = flash_surface
-        # Note: The flash will disappear on next frame since we don't store original
-        # For persistent flash, you'd need to track original image and reset after delay

@@ -38,7 +38,7 @@ class LevelState:
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
-        self.max_meteorites = 30
+        self.max_meteorites = 100
         self.meteor_spawn_timer = Timer(10000)
         self.meteor_spawn_timer.activate()
 
