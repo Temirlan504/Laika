@@ -33,11 +33,15 @@ class GreenhouseState:
     
     def load_sounds(self):
         self.sounds = {}
-        for name, path in [('chest_open', 'assets/sounds/chest_open.ogg'),
-                            ('chest_close', 'assets/sounds/chest_close.ogg')]:
+        for name, path in [('chest_open',  'assets/sounds/chest_open.ogg'),
+                            ('chest_close', 'assets/sounds/chest_close.ogg'),
+                            ('door_open',   'assets/sounds/door_open.ogg'),
+                            ('planting_seed', 'assets/sounds/planting_seed.ogg'),
+                            ('watering_soil', 'assets/sounds/watering_soil.ogg'),
+                            ('hoe', 'assets/sounds/hoe.ogg')]:
             try:
                 sound = pygame.mixer.Sound(path)
-                sound.set_volume(0.6)
+                sound.set_volume(0.5)
                 self.sounds[name] = sound
             except Exception as e:
                 print(f"[SOUND] Could not load {name}: {e}")
@@ -115,10 +119,9 @@ class GreenhouseState:
         # Show hotbar in greenhouse (you can use tools here)
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.show()
-    
-    def on_exit(self):
-        """Called when leaving the greenhouse"""
-        pass
+
+        if self.sounds.get('door_open'):
+            self.sounds['door_open'].play()
 
     def open_chest(self):
         if self.chest_ui or self.near_chest_index is None:
@@ -152,6 +155,8 @@ class GreenhouseState:
     def _exit_greenhouse(self):
         """Save state and return to level."""
         self.save_soil_state()
+        if self.sounds.get('door_open'):
+            self.sounds['door_open'].play()
         self.state_machine.change_state("level", return_pos=self.return_pos)
 
     def center_camera(self):
@@ -310,6 +315,15 @@ class GreenhouseState:
         for event_data in events:
             event_type = event_data[0]
             pos = event_data[1]
+
+            # Play farming sounds
+            sound_map = {
+                'plant': 'planting_seed',
+                'water': 'watering_soil',
+                'hoe':   'hoe',
+            }
+            if event_type in sound_map and self.sounds.get(sound_map[event_type]):
+                self.sounds[sound_map[event_type]].play()
             
             if event_type == 'plant':
                 if len(event_data) > 2:
