@@ -145,6 +145,12 @@ class MainMenuState:
     def new_game(self):
         """Start a new game"""
         print("Starting new game...")
+
+        # Clear stale level/greenhouse state so they're recreated fresh
+        if "level" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["level"]
+        if "greenhouse" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["greenhouse"]
         
         # Initialize player and game systems
         self.game.initialize_game()

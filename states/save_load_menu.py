@@ -203,6 +203,12 @@ class SaveLoadMenuState:
             print("Creating player for load...")
             self.game.initialize_game()
         
+        # Clear stale level/greenhouse state
+        if "level" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["level"]
+        if "greenhouse" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["greenhouse"]
+        
         # Load the save data
         success = self.game.save_manager.load_game(self.game, slot)
         if success:

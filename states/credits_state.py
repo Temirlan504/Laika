@@ -97,8 +97,12 @@ class CreditsState:
             self.game.interaction_prompt.visible = False
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False
-        if self.game.clock_ui:
-            self.game.clock_ui.visible = False
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = False
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = False
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = False
         if self.game.hotbar_ui:
             self.game.hotbar_ui.visible = False
         

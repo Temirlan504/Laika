@@ -149,6 +149,9 @@ class LevelState:
         return dome
 
     def on_enter(self, return_pos=None, **kwargs):
+        self.ending_triggered = False
+        self.game.day_ui.day = self.game.day_cycle.day
+
         if not self.game.player:
             print("ERROR: Level entered without player! Returning to main menu.")
             self.state_machine.change_state("main_menu")
@@ -164,6 +167,12 @@ class LevelState:
             self.game.inventory_ui.visible = False
         if self.game.hotbar_ui:
             self.game.hotbar_ui.visible = True
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = True
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = True
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = True
 
         self.game.player.unblock_input()
 
