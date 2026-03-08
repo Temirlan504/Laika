@@ -58,7 +58,7 @@ class Player(pygame.sprite.Sprite):
     
     def _load_sounds(self):
         self.sounds = {}
-        for i in range(1, 4):
+        for i in range(1, 3):
             try:
                 sound = pygame.mixer.Sound(f"assets/sounds/footstep_{i}.ogg")
                 sound.set_volume(0.4)

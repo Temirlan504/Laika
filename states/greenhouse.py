@@ -29,6 +29,20 @@ class GreenhouseState:
 
         self.hunger_system = HungerSystem()
 
+        self.load_sounds()
+    
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('chest_open', 'assets/sounds/chest_open.ogg'),
+                            ('chest_close', 'assets/sounds/chest_close.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(path)
+                sound.set_volume(0.6)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
+
     def on_enter(self, greenhouse_id=None, return_pos=None, **kwargs):
         self.current_greenhouse_id = greenhouse_id
         self.return_pos = return_pos
@@ -113,6 +127,9 @@ class GreenhouseState:
         chest = self.chests[self.near_chest_index]
         chest.open()
 
+        if self.sounds.get('chest_open'):
+            self.sounds['chest_open'].play()
+
         self.active_chest = chest
         self.chest_ui = ChestUI(
             self.game.screen,
@@ -185,16 +202,16 @@ class GreenhouseState:
 
     def handle_input(self, events):
         for event in events:
-
-            # CHEST UI OPEN
             if self.chest_ui and self.chest_ui.visible:
-
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                     self.greenhouse_data['chests'][self.active_chest.id] = \
                         self.active_chest.serialize()
                     self.chest_ui.close()
                     self.chest_ui = None
                     self.active_chest = None
+
+                    if self.sounds.get('chest_close'):
+                        self.sounds['chest_close'].play()
                     
                     if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
                         self.game.hotbar_ui.show()
@@ -209,8 +226,6 @@ class GreenhouseState:
                     return
 
                 return
-
-            # NO CHEST UI
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_TAB:
