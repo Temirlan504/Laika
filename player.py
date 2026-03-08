@@ -76,8 +76,8 @@ class Player(pygame.sprite.Sprite):
 
     def _give_starter_items(self):
         """Give player starting items - called once on initialization"""
-        self.inventory.add_item("potato_seed", 10)
-        self.inventory.add_item("tomato_seed", 5)
+        self.inventory.add_item("potato_seed", 5)
+        self.inventory.add_item("tomato_seed", 3)
         self.inventory.add_item("carrot_seed", 3)
         
         # Place starter tools in hotbar for convenience

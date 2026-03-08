@@ -19,7 +19,7 @@ from ui.hud import IronOreCounterUI
 
 class LevelState:
     # --- Class-level constants ---
-    LAST_SOL = 300
+    LAST_SOL = 3
     DOME_IRON_COST = 50
     MAX_DOMES = 15
 
@@ -345,7 +345,7 @@ class LevelState:
             self.ending_triggered = True
             if self.game.player:
                 self.game.player.block_input()
-            self.state_machine.change_state("ending_scene")
+            self.state_machine.change_state("credits")
             return True
         return False
 
