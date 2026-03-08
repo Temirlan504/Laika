@@ -17,9 +17,9 @@ class PauseMenuState:
         
         # Create overlay surface
         self.create_overlay()
-        
-        # Load fonts
+
         self.load_fonts()
+        self.load_sounds()
         
         # Create buttons
         self.create_buttons()
@@ -56,6 +56,18 @@ class PauseMenuState:
             self.title_font = pygame.font.Font(None, 80)
             self.button_font = pygame.font.Font(None, 40)
             self.small_font = pygame.font.Font(None, 28)
+
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
+                            ('click', 'assets/sounds/button_click.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(path)
+                sound.set_volume(0.5)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
     
     def create_overlay(self):
         """Create semi-transparent overlay"""
@@ -268,27 +280,32 @@ class PauseMenuState:
         sys.exit()
     
     def handle_input(self, events):
-        """Handle input events"""
         for event in events:
             if event.type == pygame.KEYDOWN:
-                # ESC to resume
                 if event.key == pygame.K_ESCAPE:
                     if self.showing_quit_confirm or self.showing_main_menu_confirm:
-                        # Cancel confirmation dialog
                         self.hide_confirmations()
                     else:
-                        # Resume game
                         self.resume_game()
-            
-            # Handle button clicks
-            if self.showing_quit_confirm or self.showing_main_menu_confirm:
-                # Handle confirmation buttons
-                for button in self.confirm_buttons:
-                    button.handle_event(event)
-            else:
-                # Handle main pause menu buttons
-                for button in self.buttons:
-                    button.handle_event(event)
+
+            active_buttons = self.confirm_buttons if (self.showing_quit_confirm or self.showing_main_menu_confirm) else self.buttons
+
+            if event.type == pygame.MOUSEMOTION:
+                for button in active_buttons:
+                    was_hovered = button.hovered
+                    button.hovered = button.rect.collidepoint(event.pos)
+                    if button.hovered and not was_hovered:
+                        if self.sounds.get('hover'):
+                            self.sounds['hover'].play()
+
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                for button in active_buttons:
+                    if button.pressed and button.hovered and button.callback:
+                        if self.sounds.get('click'):
+                            self.sounds['click'].play()
+
+            for button in active_buttons:
+                button.handle_event(event)
     
     def update(self, dt):
         """Update button hover states"""

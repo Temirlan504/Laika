@@ -8,12 +8,10 @@ class MainMenuState:
         self.state_machine = state_machine
         self.game = game
         self.screen = game.screen
-        
-        # Load fonts
+
         self.load_fonts()
-        
-        # Load background (contains title and subtitle from Canva)
         self.load_background()
+        self.load_sounds()
         
         # Create buttons only
         self.create_buttons()
@@ -54,6 +52,18 @@ class MainMenuState:
             # Fallback to system font
             print("Warning: PressStart2P.ttf not found, using default font")
             self.button_font = pygame.font.Font(None, 45)
+
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
+                            ('click', 'assets/sounds/button_click.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(path)
+                sound.set_volume(0.5)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
     
     def load_background(self):
         bg_path = "assets/main_menu_bg.png"
@@ -171,15 +181,28 @@ class MainMenuState:
         sys.exit()
     
     def handle_input(self, events):
-        """Handle input events"""
         for event in events:
-            # Handle button events
+            if event.type == pygame.MOUSEMOTION:
+                for button in self.buttons:
+                    was_hovered = button.hovered
+                    button.hovered = button.rect.collidepoint(event.pos)
+                    if button.hovered and not was_hovered:
+                        if self.sounds.get('hover'):
+                            self.sounds['hover'].play()
+
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                for button in self.buttons:
+                    if button.pressed and button.hovered and button.callback:
+                        if self.sounds.get('click'):
+                            self.sounds['click'].play()
+
             for button in self.buttons:
                 button.handle_event(event)
-            
-            # Quick start with ENTER
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
+                    if self.sounds.get('click'):
+                        self.sounds['click'].play()
                     self.new_game()
     
     # Handle window resize

@@ -58,6 +58,19 @@ class SaveLoadMenuState:
         self.confirm_no_button = None
         
         self._create_buttons()
+        self.load_sounds()
+
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
+                            ('click', 'assets/sounds/button_click.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(path)
+                sound.set_volume(0.5)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
     
     def _create_buttons(self):
         """Create UI buttons"""
@@ -253,10 +266,8 @@ class SaveLoadMenuState:
         self._create_buttons()  # Refresh slot data
     
     def handle_input(self, events):
-        """Handle input events"""
         mouse_pos = pygame.mouse.get_pos()
-        
-        # If confirmation dialog is showing, only handle those inputs
+
         if self.show_confirmation:
             for event in events:
                 if event.type == pygame.KEYDOWN:
@@ -264,51 +275,61 @@ class SaveLoadMenuState:
                         self._cancel_confirmation()
                     elif event.key == pygame.K_RETURN:
                         self._confirm_action()
-                
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        # Check Yes/No buttons
-                        if self.confirm_yes_button and self.confirm_yes_button.hovered:
-                            self.confirm_yes_button.callback()
-                        elif self.confirm_no_button and self.confirm_no_button.hovered:
-                            self.confirm_no_button.callback()
-            
-            # Update button hover states
+
+                if event.type == pygame.MOUSEMOTION:
+                    for button in [self.confirm_yes_button, self.confirm_no_button]:
+                        if button:
+                            was_hovered = button.hovered
+                            button.hovered = button.rect.collidepoint(event.pos)
+                            if button.hovered and not was_hovered:
+                                if self.sounds.get('hover'):
+                                    self.sounds['hover'].play()
+
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.confirm_yes_button and self.confirm_yes_button.hovered:
+                        if self.sounds.get('click'):
+                            self.sounds['click'].play()
+                        self.confirm_yes_button.callback()
+                    elif self.confirm_no_button and self.confirm_no_button.hovered:
+                        if self.sounds.get('click'):
+                            self.sounds['click'].play()
+                        self.confirm_no_button.callback()
+
             if self.confirm_yes_button:
                 self.confirm_yes_button.update(mouse_pos)
             if self.confirm_no_button:
                 self.confirm_no_button.update(mouse_pos)
-            
-            return  # Don't process other inputs
-        
-        # Normal input handling
-        # Update all button hover states
+            return
+
+        # Normal input
+        all_buttons = self.slot_buttons + self.delete_buttons + [self.back_button]
+
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self._handle_back()
+
+            if event.type == pygame.MOUSEMOTION:
+                for button in all_buttons:
+                    was_hovered = button.hovered
+                    button.hovered = button.rect.collidepoint(event.pos)
+                    if button.hovered and not was_hovered:
+                        if self.sounds.get('hover'):
+                            self.sounds['hover'].play()
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for button in all_buttons:
+                    if button.hovered and button.callback:
+                        if self.sounds.get('click'):
+                            self.sounds['click'].play()
+                        button.callback()
+                        break
+
         for button in self.slot_buttons:
             button.update(mouse_pos)
         for button in self.delete_buttons:
             button.update(mouse_pos)
         self.back_button.update(mouse_pos)
-        
-        for event in events:
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self._handle_back()
-            
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Left click
-                    # Check slot buttons
-                    for button in self.slot_buttons:
-                        if button.hovered:
-                            button.callback()
-                    
-                    # Check delete buttons
-                    for button in self.delete_buttons:
-                        if button.hovered:
-                            button.callback()
-                    
-                    # Check back button
-                    if self.back_button.hovered:
-                        self.back_button.callback()
     
     def run(self, dt):
         """Main run loop"""
