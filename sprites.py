@@ -1,6 +1,7 @@
 import random
 import pygame
 from utils.settings import *
+from utils.support import resource_path
 
 class GenericSprite(pygame.sprite.Sprite):
     def __init__(self, pos, surface, groups, z_index):
@@ -55,20 +56,16 @@ class Meteorite(pygame.sprite.Sprite):
         # Load meteor image (cached)
         if Meteorite._meteor_image is None:
             try:
-                # Load the meteor sprite
-                meteor_img = pygame.image.load("assets/tilesets/objects/meteor.png").convert_alpha()
-                # Scale to tile size (adjust size as needed)
+                meteor_img = pygame.image.load(resource_path("assets/tilesets/objects/meteor.png")).convert_alpha()
                 Meteorite._meteor_image = pygame.transform.scale(meteor_img, (TILE_SIZE, TILE_SIZE))
                 print("Meteor sprite loaded successfully!")
-            except Exception as e:
-                print(f"Warning: Could not load meteor.png: {e}")
-                print("Using placeholder circle instead")
-                # Fallback to gray circle
+            except FileNotFoundError:
+                print("Warning: Could not load meteor.png, using placeholder")
                 Meteorite._meteor_image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                 pygame.draw.circle(
-                    Meteorite._meteor_image, 
-                    (140, 140, 160), 
-                    (TILE_SIZE//2, TILE_SIZE//2), 
+                    Meteorite._meteor_image,
+                    (140, 140, 160),
+                    (TILE_SIZE//2, TILE_SIZE//2),
                     TILE_SIZE//2
                 )
         

@@ -1,5 +1,6 @@
 import pygame
 import random
+from utils.support import resource_path
 
 class AmbientMusicSystem:
     def __init__(self):
@@ -20,7 +21,7 @@ class AmbientMusicSystem:
         if not self.enabled or pygame.mixer.music.get_busy():
             return
         if pygame.time.get_ticks() >= self.next_play_time:
-            track = random.choice(self.tracks)
+            track = resource_path(random.choice(self.tracks))
             pygame.mixer.music.load(track)
             pygame.mixer.music.set_volume(self.volume)
             pygame.mixer.music.play()

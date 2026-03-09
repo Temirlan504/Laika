@@ -6,6 +6,7 @@ from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
 from utils.timer import Timer
+from utils.support import resource_path
 
 from camera import CameraGroup
 from building.preview import DomePreview
@@ -54,7 +55,7 @@ class LevelState:
         self.debug_timer = 0
 
         # Load Tiled map
-        self.map_path = 'data/tmx/main.tmx'
+        self.map_path = resource_path('data/tmx/main.tmx')
         self.game_map = MapLoader(self.map_path)
 
         self.all_sprites = CameraGroup(
@@ -69,7 +70,7 @@ class LevelState:
 
         # Load greenhouse image — kept as an instance attribute so _spawn_dome
         # can reuse it without reloading from disk each time.
-        dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        dome_image = pygame.image.load(resource_path("assets/dome.png")).convert_alpha()
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         self._dome_image = dome_image
         self.preview = DomePreview(dome_image)

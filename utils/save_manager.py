@@ -1,7 +1,8 @@
 import json
-import os
+import os, subprocess
 from datetime import datetime
 from pathlib import Path
+from utils.support import resource_path
 
 class SaveManager:
     """
@@ -9,10 +10,11 @@ class SaveManager:
     Handles player data, world state, greenhouses, and buildings.
     """
     
-    def __init__(self, save_directory="saves"):
+    def __init__(self, save_directory=None):
+        if save_directory is None:
+            save_directory = os.path.join(os.getenv('APPDATA', '.'), 'Laika', 'saves')
         self.save_directory = Path(save_directory)
-        self.save_directory.mkdir(exist_ok=True)
-        self.current_slot = None
+        self.save_directory.mkdir(parents=True, exist_ok=True)
         
     def get_save_slots(self):
         """Get list of available save slots with metadata"""
@@ -38,13 +40,6 @@ class SaveManager:
         return slots
     
     def save_game(self, game, slot=1):
-        """
-        Save the entire game state to a JSON file.
-        
-        Args:
-            game: Main game object with all systems
-            slot: Save slot number (1-3)
-        """
         self.current_slot = slot
         
         # Ensure save directory exists
@@ -309,7 +304,6 @@ class SaveManager:
                     plant = Plant(plant_data['plant_type'])
                     plant.growth_stage = plant_data.get('growth_stage', 0)
                 
-                # Greenhouse.py expects {'state': ..., 'plant': ...}
                 game.greenhouse_data[greenhouse_id]['soil'][actual_key] = {
                     'state': soil_info.get('state', 'empty'),
                     'plant': plant
@@ -336,7 +330,7 @@ class SaveManager:
             return
         
         # Load dome image
-        dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        dome_image = pygame.image.load(resource_path("assets/dome.png")).convert_alpha()
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         
         # Spawn each building

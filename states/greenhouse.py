@@ -3,6 +3,7 @@ from camera import CameraGroup
 
 from utils.settings import *
 from utils.map_loader import MapLoader
+from utils.support import resource_path
 
 from greenhouse.soil import SoilLayer
 from greenhouse.chest import Chest
@@ -40,7 +41,7 @@ class GreenhouseState:
                             ('watering_soil', 'assets/sounds/watering_soil.ogg'),
                             ('hoe', 'assets/sounds/hoe.ogg')]:
             try:
-                sound = pygame.mixer.Sound(path)
+                sound = pygame.mixer.Sound(resource_path(path))
                 sound.set_volume(0.5)
                 self.sounds[name] = sound
             except Exception as e:

@@ -1,9 +1,11 @@
 import pygame
-import os
 import random
+
 from utils.settings import LAYERS, TILE_SIZE
-from greenhouse.plant import Plant
 from utils.timer import Timer
+from utils.support import resource_path
+
+from greenhouse.plant import Plant
 from items import get_item
 
 class SoilTile(pygame.sprite.Sprite):
@@ -22,6 +24,27 @@ class SoilTile(pygame.sprite.Sprite):
 
         # Cache for loaded plant sprites
         self.plant_sprite_cache = {}
+
+    def load_plant_sprite(self, plant_type, stage):
+        cache_key = (plant_type, stage)
+        if cache_key in self.plant_sprite_cache:
+            return self.plant_sprite_cache[cache_key]
+
+        sprite_path = resource_path(f"assets/items/crop_stages/{plant_type}/{stage}.png")
+
+        try:
+            sprite = pygame.image.load(sprite_path).convert_alpha()
+            target_size = int(TILE_SIZE * 0.5)
+            sprite = pygame.transform.scale(sprite, (target_size, target_size))
+            self.plant_sprite_cache[cache_key] = sprite
+            return sprite
+        except FileNotFoundError:
+            self.plant_sprite_cache[cache_key] = None
+            return None
+        except Exception as e:
+            print(f"[SOIL] Error loading plant sprite {sprite_path}: {e}")
+            self.plant_sprite_cache[cache_key] = None
+            return None
 
     def hoe(self):
         if self.state == "dry":
@@ -74,31 +97,6 @@ class SoilTile(pygame.sprite.Sprite):
             return True
         
         return False
-
-    def load_plant_sprite(self, plant_type, stage):
-        """Load a plant sprite image for a specific growth stage"""
-        # Check cache first
-        cache_key = (plant_type, stage)
-        if cache_key in self.plant_sprite_cache:
-            return self.plant_sprite_cache[cache_key]
-        
-        # Try to load from file
-        sprite_path = f"assets/items/crop_stages/{plant_type}/{stage}.png"
-        
-        if os.path.exists(sprite_path):
-            try:
-                sprite = pygame.image.load(sprite_path).convert_alpha()
-                # Scale to fit tile size (80% of tile size for some padding)
-                target_size = int(TILE_SIZE * 0.5)
-                sprite = pygame.transform.scale(sprite, (target_size, target_size))
-                self.plant_sprite_cache[cache_key] = sprite
-                return sprite
-            except Exception as e:
-                print(f"[SOIL] Error loading plant sprite {sprite_path}: {e}")
-                return None
-        
-        return None
-
 
     def grow_to_final(self):
         """Instantly grow plant to final stage (called when sleeping)"""

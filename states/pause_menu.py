@@ -1,6 +1,7 @@
 import pygame
 import sys
 from utils.button import Button
+from utils.support import resource_path
 
 class PauseMenuState:
     def __init__(self, state_machine, game):
@@ -29,6 +30,29 @@ class PauseMenuState:
         self.showing_main_menu_confirm = False
         self.confirm_buttons = []
     
+    def load_fonts(self):
+        font_path = resource_path("assets/fonts/PressStart2P.ttf")
+        try:
+            self.title_font = pygame.font.Font(font_path, 60)
+            self.button_font = pygame.font.Font(font_path, 30)
+            self.small_font = pygame.font.Font(font_path, 20)
+        except FileNotFoundError:
+            self.title_font = pygame.font.Font(None, 80)
+            self.button_font = pygame.font.Font(None, 40)
+            self.small_font = pygame.font.Font(None, 28)
+
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
+                            ('click', 'assets/sounds/button_click.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(resource_path(path))
+                sound.set_volume(0.5)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
+
     def on_enter(self, **kwargs):
         """Called when entering pause menu"""
         # Block player input
@@ -42,32 +66,6 @@ class PauseMenuState:
         # Reset confirmation dialogs
         self.showing_quit_confirm = False
         self.showing_main_menu_confirm = False
-    
-    def load_fonts(self):
-        """Load fonts"""
-        import os
-        font_path = "assets/fonts/PressStart2P.ttf"
-        
-        if os.path.exists(font_path):
-            self.title_font = pygame.font.Font(font_path, 60)
-            self.button_font = pygame.font.Font(font_path, 30)
-            self.small_font = pygame.font.Font(font_path, 20)
-        else:
-            self.title_font = pygame.font.Font(None, 80)
-            self.button_font = pygame.font.Font(None, 40)
-            self.small_font = pygame.font.Font(None, 28)
-
-    def load_sounds(self):
-        self.sounds = {}
-        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
-                            ('click', 'assets/sounds/button_click.ogg')]:
-            try:
-                sound = pygame.mixer.Sound(path)
-                sound.set_volume(0.5)
-                self.sounds[name] = sound
-            except Exception as e:
-                print(f"[SOUND] Could not load {name}: {e}")
-                self.sounds[name] = None
     
     def create_overlay(self):
         """Create semi-transparent overlay"""

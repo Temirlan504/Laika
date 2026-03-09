@@ -1,7 +1,7 @@
 import pygame
-import os
 from items import get_item
 from ui.ui_config import ui_config
+from utils.support import resource_path, load_item_image
 
 class ChestUI:
     def __init__(self, screen, player_inventory, chest_inventory):
@@ -178,55 +178,23 @@ class ChestUI:
         self.drag_source_slot = None
 
     # ----------------- DRAW -----------------
-
     def draw_item_in_slot(self, slot, rect, alpha=255):
-        """Draw an item inside a slot with image (like InventoryUI)"""
         item = get_item(slot["item_id"])
         if not item:
             return
-        
-        # Try to load item sprite/texture from multiple possible paths
-        item_image = None
-        item_id = slot['item_id']
-        
-        # Try different paths (in order of preference)
-        possible_paths = [
-            f"assets/items/{item_id}.png",              # Flat structure
-            f"assets/items/tools/{item_id}.png",        # Tools subfolder
-            f"assets/items/seeds/{item_id}.png",        # Seeds subfolder
-            f"assets/items/crops/{item_id}.png",        # Crops subfolder
-            f"assets/items/resources/{item_id}.png",    # Resources subfolder
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    item_image = pygame.image.load(path).convert_alpha()
-                    # Scale to fit slot (leave some padding)
-                    image_size = int(self.slot_size * 0.7)  # 70% of slot size (match inventory_ui)
-                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
-                    break
-                except Exception as e:
-                    print(f"[CHEST_UI] Error loading {path}: {e}")
-                    item_image = None
-        
+
+        item_image = load_item_image(slot["item_id"], self.slot_size)
+
         if item_image:
-            # Draw item image centered in slot
             image_rect = item_image.get_rect(center=rect.center)
-            
             if alpha < 255:
-                # Apply transparency
-                temp_surface = item_image.copy()
-                temp_surface.set_alpha(alpha)
-                self.screen.blit(temp_surface, image_rect)
+                temp = item_image.copy()
+                temp.set_alpha(alpha)
+                self.screen.blit(temp, image_rect)
             else:
                 self.screen.blit(item_image, image_rect)
         else:
-            # Fallback: draw item name as text
-            name_text = item.name
-            if len(name_text) > 8:
-                name_text = name_text[:6] + ".."
-            
+            name_text = item.name[:6] + ".." if len(item.name) > 8 else item.name
             if alpha < 255:
                 text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
                 name = self.item_font.render(name_text, True, (*ui_config.WHITE, alpha))
@@ -235,10 +203,44 @@ class ChestUI:
             else:
                 name = self.item_font.render(name_text, True, ui_config.WHITE)
                 self.screen.blit(name, (rect.x + 4, rect.y + 4))
-        
-        # Draw quantity in bottom-right corner
+
         qty_text = str(slot["quantity"])
-        
+        if alpha < 255:
+            text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            qty = self.qty_font.render(qty_text, True, (*ui_config.WHITE, alpha))
+            text_surface.blit(qty, (rect.width - 22, rect.height - 22))
+            self.screen.blit(text_surface, rect)
+        else:
+            qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
+            self.screen.blit(qty, (rect.right - 22, rect.bottom - 22))
+
+    def draw_item_in_slot(self, slot, rect, alpha=255):
+        item = get_item(slot["item_id"])
+        if not item:
+            return
+
+        item_image = load_item_image(slot["item_id"], self.slot_size)
+
+        if item_image:
+            image_rect = item_image.get_rect(center=rect.center)
+            if alpha < 255:
+                temp = item_image.copy()
+                temp.set_alpha(alpha)
+                self.screen.blit(temp, image_rect)
+            else:
+                self.screen.blit(item_image, image_rect)
+        else:
+            name_text = item.name[:6] + ".." if len(item.name) > 8 else item.name
+            if alpha < 255:
+                text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                name = self.item_font.render(name_text, True, (*ui_config.WHITE, alpha))
+                text_surface.blit(name, (4, 4))
+                self.screen.blit(text_surface, rect)
+            else:
+                name = self.item_font.render(name_text, True, ui_config.WHITE)
+                self.screen.blit(name, (rect.x + 4, rect.y + 4))
+
+        qty_text = str(slot["quantity"])
         if alpha < 255:
             text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             qty = self.qty_font.render(qty_text, True, (*ui_config.WHITE, alpha))

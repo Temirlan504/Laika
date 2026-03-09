@@ -1,8 +1,11 @@
 import pygame
 from items import ItemType, get_item
+
 from utils.settings import *
 from utils.support import import_folder
 from utils.timer import Timer
+from utils.support import resource_path
+
 from systems.inventory_system import Hotbar, Inventory
 
 class Player(pygame.sprite.Sprite):
@@ -60,7 +63,7 @@ class Player(pygame.sprite.Sprite):
         self.sounds = {}
         for i in range(1, 3):
             try:
-                sound = pygame.mixer.Sound(f"assets/sounds/footstep_{i}.ogg")
+                sound = pygame.mixer.Sound(resource_path(f"assets/sounds/footstep_{i}.ogg"))
                 sound.set_volume(0.4)
                 self.sounds[f'footstep_{i}'] = sound
             except Exception as e:
@@ -68,7 +71,7 @@ class Player(pygame.sprite.Sprite):
 
         for i in range(1, 2):
             try:
-                sound = pygame.mixer.Sound(f"assets/sounds/mining_{i}.ogg")
+                sound = pygame.mixer.Sound(resource_path(f"assets/sounds/mining_{i}.ogg"))
                 sound.set_volume(0.4)
                 self.sounds[f'mining_{i}'] = sound
             except Exception as e:

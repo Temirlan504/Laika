@@ -1,8 +1,8 @@
-import os
 import pygame
 from items import get_item
 from ui.ui_element import UIElement
 from ui.ui_config import ui_config
+from utils.support import resource_path, load_item_image
 
 class DayUI(UIElement):
     def __init__(self, day_cycle, clock, screen):
@@ -13,12 +13,10 @@ class DayUI(UIElement):
         
         # Load background image
         self.bg_image = None
-        bg_path = "assets/ui/day_time_bg.png"
-        if os.path.exists(bg_path):
-            try:
-                self.bg_image = pygame.image.load(bg_path).convert_alpha()
-            except Exception as e:
-                print(f"[DAY_UI] Error loading background image: {e}")
+        try:
+            self.bg_image = pygame.image.load(resource_path("assets/ui/day_time_bg.png")).convert_alpha()
+        except FileNotFoundError:
+            self.bg_image = None
         
         # Fonts - customize sizes here
         self.day_font = ui_config.get_font(20)
@@ -100,12 +98,11 @@ class IronOreCounterUI(UIElement):
         # Load and scale ore icon to fit inside the bar
         self._icon  = None
         icon_size   = self.panel_height - 8   # 4 px padding top and bottom
-        if os.path.exists(self.IMAGE_PATH):
-            try:
-                raw        = pygame.image.load(self.IMAGE_PATH).convert_alpha()
-                self._icon = pygame.transform.scale(raw, (icon_size, icon_size))
-            except Exception as e:
-                print(f"[IRON_ORE_UI] Failed to load icon: {e}")
+        try:
+            raw = pygame.image.load(resource_path(self.IMAGE_PATH)).convert_alpha()
+            self._icon = pygame.transform.scale(raw, (icon_size, icon_size))
+        except FileNotFoundError:
+            self._icon = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -188,12 +185,10 @@ class HotbarUI:
         
         # Load background image
         self.bg_image = None
-        bg_path = "assets/ui/hotbar_bg.png"
-        if os.path.exists(bg_path):
-            try:
-                self.bg_image = pygame.image.load(bg_path).convert_alpha()
-            except Exception as e:
-                print(f"[HOTBAR] Error loading background image: {e}")
+        try:
+            self.bg_image = pygame.image.load(resource_path("assets/ui/hotbar_bg.png")).convert_alpha()
+        except FileNotFoundError:
+            self.bg_image = None
         
         # Visual settings
         self.slot_size = 64
@@ -273,45 +268,21 @@ class HotbarUI:
         item = get_item(slot["item_id"])
         if not item:
             return
-        
-        item_image = None
-        item_id = slot['item_id']
-        
-        possible_paths = [
-            f"assets/items/{item_id}.png",
-            f"assets/items/tools/{item_id}.png",
-            f"assets/items/seeds/{item_id}.png",
-            f"assets/items/crops/{item_id}.png",
-            f"assets/items/resources/{item_id}.png",
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    item_image = pygame.image.load(path).convert_alpha()
-                    image_size = int(self.slot_size * 0.65)
-                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
-                    break
-                except Exception as e:
-                    print(f"[HOTBAR] Error loading {path}: {e}")
-        
+
+        item_image = load_item_image(slot["item_id"], self.slot_size)
+
         if item_image:
-            image_rect = item_image.get_rect(center=rect.center)
-            self.screen.blit(item_image, image_rect)
+            self.screen.blit(item_image, item_image.get_rect(center=rect.center))
         else:
-            name_font = ui_config.get_font(10)
-            name_text = item.name[:6]
-            name = name_font.render(name_text, True, ui_config.WHITE)
-            name_rect = name.get_rect(center=rect.center)
-            self.screen.blit(name, name_rect)
-        
+            name = ui_config.get_font(10).render(item.name[:6], True, ui_config.WHITE)
+            self.screen.blit(name, name.get_rect(center=rect.center))
+
         if slot["quantity"] > 1:
             qty_text = str(slot["quantity"])
             qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
             qty_shadow = self.qty_font.render(qty_text, True, (0, 0, 0))
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
-
 
 class HealthBarUI(UIElement):
     def __init__(self, player, screen):
