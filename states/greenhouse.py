@@ -55,7 +55,7 @@ class GreenhouseState:
         self.greenhouse_data = self.game.greenhouse_data[greenhouse_id]
 
         # Load greenhouse map
-        self.map_loader = MapLoader("data/tmx/greenhouse.tmx")
+        self.map_loader = MapLoader(resource_path("data/tmx/greenhouse.tmx"))
 
         # ---- Setup chests (3 per greenhouse) ----
         if 'chests' not in self.greenhouse_data:

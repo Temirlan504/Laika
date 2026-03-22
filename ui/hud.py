@@ -423,3 +423,50 @@ class HungerBarUI(UIElement):
         text_surface = self.font.render(text, True, ui_config.WHITE)
         text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
         self.screen.blit(text_surface, text_rect)
+
+
+class OxygenWarningUI(UIElement):
+    """Displays a pulsing 'OXYGEN LOW' warning at the top of the screen."""
+
+    WARN_THRESHOLD = 20   # Yellow warning starts here
+    CRIT_THRESHOLD = 10   # Red warning starts here
+
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player  = player
+        self.screen  = screen
+        self.visible = True
+
+        self.font    = ui_config.get_font(70)
+        self._pulse  = 0.0   # Accumulates time for the sine-wave pulse
+
+    def draw(self, dt=0):
+        o2 = self.player.current_oxygen
+
+        if o2 >= self.WARN_THRESHOLD:
+            return   # Nothing to show
+
+        # Choose colour based on severity
+        if o2 < self.CRIT_THRESHOLD:
+            base_color = (255, 0, 0)   # Red
+        else:
+            base_color = (220, 200, 50)  # Yellow
+
+        # Pulse alpha between ~80 and 255 using a sine wave
+        self._pulse += dt * 4.0          # Speed of pulse
+        import math
+        alpha = int(167 + 88 * math.sin(self._pulse))   # 79 … 255
+
+        # Render text
+        text_surf = self.font.render("OXYGEN LOW", True, base_color)
+        text_rect = text_surf.get_rect(
+            centerx=self.screen.get_width() // 2,
+            top=80
+        )
+
+        # Apply alpha via a temporary surface so the font renders cleanly
+        alpha_surf = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
+        alpha_surf.blit(text_surf, (0, 0))
+        alpha_surf.set_alpha(alpha)
+
+        self.screen.blit(alpha_surf, text_rect)

@@ -15,7 +15,7 @@ from building.door import DoorInteractionZone
 from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
-from ui.hud import IronOreCounterUI
+from ui.hud import IronOreCounterUI, OxygenWarningUI
 
 
 class LevelState:
@@ -84,6 +84,9 @@ class LevelState:
 
         # HUD: iron ore counter
         self.iron_ore_counter = IronOreCounterUI(self.game.player, self.screen)
+
+        # Oxygen warnings
+        self.oxygen_warning_ui = OxygenWarningUI(self.game.player, self.screen)
 
         self.setup_level()
 
@@ -625,3 +628,4 @@ class LevelState:
             self.game.hotbar_ui.draw()
 
         self.iron_ore_counter.draw()
+        self.oxygen_warning_ui.draw(dt=dt)
