@@ -297,7 +297,7 @@ class GreenhouseState:
                                 self.game.inventory_ui.swap_slots(from_info, to_info)
 
     def refill_oxygen(self, dt):
-        self.game.player.refill_oxygen(40 * dt)
+        self.game.player.refill_oxygen(10 * dt)
 
     def run(self, dt):
         self.screen.fill("black")

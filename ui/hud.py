@@ -428,36 +428,83 @@ class HungerBarUI(UIElement):
 class OxygenWarningUI(UIElement):
     """Displays a pulsing 'OXYGEN LOW' warning at the top of the screen."""
 
-    WARN_THRESHOLD = 20   # Yellow warning starts here
-    CRIT_THRESHOLD = 10   # Red warning starts here
+    WARN_THRESHOLD = 20
+    CRIT_THRESHOLD = 10
 
     def __init__(self, player, screen):
         super().__init__()
-        self.player  = player
-        self.screen  = screen
+        self.player = player
+        self.screen = screen
         self.visible = True
 
-        self.font    = ui_config.get_font(70)
-        self._pulse  = 0.0   # Accumulates time for the sine-wave pulse
+        self.font   = ui_config.get_font(70)
+        self._pulse = 0.0
+        self._vignette_surf = None  # Cached surface, rebuilt on resize
+
+    def _draw_vignette(self, o2):
+        """Red corner vignette that fades in from o2=15 down to full at o2=10."""
+
+        VIGNETTE_START = 15
+        VIGNETTE_FULL  = 10
+        MAX_ALPHA      = 100   # 50% opacity at full strength
+
+        if o2 >= VIGNETTE_START:
+            return
+
+        # t = 0.0 at o2=15, 1.0 at o2=10
+        t = 1.0 - max(0.0, min(1.0, (o2 - VIGNETTE_FULL) / (VIGNETTE_START - VIGNETTE_FULL)))
+        vignette_alpha = int(MAX_ALPHA * t)
+
+        if vignette_alpha <= 0:
+            return
+
+        sw, sh = self.screen.get_size()
+
+        # Rebuild cached surface only when screen size changes
+        if self._vignette_surf is None or self._vignette_surf.get_size() != (sw, sh):
+            surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+
+            # Build vignette: concentric ellipses from edge (opaque) inward (transparent)
+            steps = 80
+            for i in range(steps, 0, -1):
+                ratio = i / steps
+                a     = int(255 * ratio)
+                w     = int(sw * ratio * 1.5)  # Extend beyond edges for stronger corners
+                h     = int(sh * ratio * 1.5)
+                x     = (sw - w) // 2
+                y     = (sh - h) // 2
+                pygame.draw.ellipse(surf, (180, 0, 0, a), (x, y, w, h))
+
+            # Punch a transparent hole in the centre so only the edges/corners glow
+            cx_w = int(sw * 0.9)
+            cx_h = int(sh * 0.9)
+            cx   = (sw - cx_w) // 2
+            cy   = (sh - cx_h) // 2
+            pygame.draw.ellipse(surf, (0, 0, 0, 0), (cx, cy, cx_w, cx_h))
+
+            self._vignette_surf = surf
+
+        self._vignette_surf.set_alpha(vignette_alpha)
+        self.screen.blit(self._vignette_surf, (0, 0))
 
     def draw(self, dt=0):
+        import math
         o2 = self.player.current_oxygen
 
+        # Vignette is independent — starts earlier than the text warning
+        self._draw_vignette(o2)
+
         if o2 >= self.WARN_THRESHOLD:
-            return   # Nothing to show
+            return
 
-        # Choose colour based on severity
         if o2 < self.CRIT_THRESHOLD:
-            base_color = (255, 0, 0)   # Red
+            base_color = (255, 0, 0)
         else:
-            base_color = (220, 200, 50)  # Yellow
+            base_color = (220, 200, 50)
 
-        # Pulse alpha between ~80 and 255 using a sine wave
-        self._pulse += dt * 4.0          # Speed of pulse
-        import math
-        alpha = int(167 + 88 * math.sin(self._pulse))   # 79 … 255
+        self._pulse += dt * 4.0
+        alpha = int(167 + 88 * math.sin(self._pulse))
 
-        # Render text
         text_surf = self.font.render("OXYGEN LOW", True, base_color)
         text_rect = text_surf.get_rect(
             centerx=self.screen.get_width() // 2,

@@ -1,6 +1,6 @@
 class OxygenSystem:
     def __init__(self):
-        self.drain_rate = 10    # Oxygen drained per second
+        self.drain_rate = 0.3    # Oxygen drained per second
         self.drown_damage = 0.8  # Health lost per second when drowning
 
     def update(self, player, dt):
