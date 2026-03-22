@@ -4,6 +4,7 @@ class Inventory:
     def __init__(self, size=36):
         self.size = size
         self.slots = [None] * size
+        self.on_item_added = None  # Callback for when an item is added
 
     # ---------- Queries ----------
 
@@ -40,17 +41,18 @@ class Inventory:
                     slot["quantity"] += added
                     remaining -= added
                     if remaining == 0:
+                        if self.on_item_added:
+                            self.on_item_added(item_id, amount)
                         return True
 
         for i in range(self.size):
             if self.slots[i] is None:
                 added = min(item_def.max_stack, remaining)
-                self.slots[i] = {
-                    "item_id": item_id,
-                    "quantity": added
-                }
+                self.slots[i] = {"item_id": item_id, "quantity": added}
                 remaining -= added
                 if remaining == 0:
+                    if self.on_item_added:
+                        self.on_item_added(item_id, amount)
                     return True
 
         return False  # Inventory full

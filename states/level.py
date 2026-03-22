@@ -1,5 +1,6 @@
 import random
 import pygame
+from items import get_item
 from sprites import GreenhouseDome, Meteorite
 
 from utils.settings import *
@@ -15,7 +16,7 @@ from building.door import DoorInteractionZone
 from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
-from ui.hud import IronOreCounterUI, OxygenWarningUI
+from ui.hud import IronOreCounterUI, OxygenWarningUI, PickupNotificationUI
 
 
 class LevelState:
@@ -87,6 +88,15 @@ class LevelState:
 
         # Oxygen warnings
         self.oxygen_warning_ui = OxygenWarningUI(self.game.player, self.screen)
+
+        # Pickup notifications
+        self.pickup_notification_ui = PickupNotificationUI(self.screen)
+        def _on_item_added(item_id, amount):
+            item_def = get_item(item_id)
+            name = item_def.name if item_def else item_id
+            self.pickup_notification_ui.notify(name, amount)
+
+        self.game.player.inventory.on_item_added = _on_item_added
 
         self.setup_level()
 
@@ -629,3 +639,5 @@ class LevelState:
 
         self.iron_ore_counter.draw()
         self.oxygen_warning_ui.draw(dt=dt)
+        self.pickup_notification_ui.update(dt)
+        self.pickup_notification_ui.draw()

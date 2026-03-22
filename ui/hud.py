@@ -517,3 +517,60 @@ class OxygenWarningUI(UIElement):
         alpha_surf.set_alpha(alpha)
 
         self.screen.blit(alpha_surf, text_rect)
+
+
+class PickupNotificationUI(UIElement):
+    """Shows '+N item_name' toast notifications in the bottom-right corner."""
+
+    DISPLAY_TIME = 2.5   # Seconds each notification stays visible
+    FADE_TIME    = 0.5   # Seconds to fade out
+    MAX_VISIBLE  = 5     # Max stacked notifications on screen
+
+    def __init__(self, screen):
+        super().__init__()
+        self.screen = screen
+        self.font   = ui_config.get_font(14)
+        self._queue = []  # List of {text, timer, alpha}
+
+    def notify(self, item_name, count):
+        """Call this whenever an item is picked up."""
+        text = f"+{count} {item_name}"
+
+        # If the same item is already showing, just reset its timer
+        for entry in self._queue:
+            if entry["text"] == text:
+                entry["timer"] = self.DISPLAY_TIME
+                entry["alpha"] = 255
+                return
+
+        self._queue.append({"text": text, "timer": self.DISPLAY_TIME, "alpha": 255})
+
+        # Keep only the most recent MAX_VISIBLE
+        if len(self._queue) > self.MAX_VISIBLE:
+            self._queue.pop(0)
+
+    def update(self, dt):
+        for entry in self._queue:
+            entry["timer"] -= dt
+            # Fade out during the last FADE_TIME seconds
+            if entry["timer"] < self.FADE_TIME:
+                entry["alpha"] = int(255 * max(0, entry["timer"] / self.FADE_TIME))
+
+        self._queue = [e for e in self._queue if e["timer"] > 0]
+
+    def draw(self):
+        if not self._queue:
+            return
+
+        padding_right  = 20
+        padding_bottom = 120   # Sits above the hotbar
+        line_height    = 22
+
+        for i, entry in enumerate(reversed(self._queue)):
+            text_surf = self.font.render(entry["text"], True, (200, 200, 200))
+            text_surf.set_alpha(entry["alpha"])
+
+            x = self.screen.get_width()  - text_surf.get_width() - padding_right
+            y = self.screen.get_height() - padding_bottom - i * line_height
+
+            self.screen.blit(text_surf, (x, y))
