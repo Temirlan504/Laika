@@ -1,6 +1,8 @@
 import pygame
 from camera import CameraGroup
 
+from items import get_item
+from ui.hud import PickupNotificationUI
 from utils.settings import *
 from utils.map_loader import MapLoader
 from utils.support import resource_path
@@ -29,6 +31,15 @@ class GreenhouseState:
         self.near_exit = False
 
         self.hunger_system = HungerSystem()
+
+        # Pickup notifications
+        self.pickup_notification_ui = PickupNotificationUI(self.screen)
+        def _on_item_added(item_id, quantity):
+            item_def = get_item(item_id)
+            name = item_def.name if item_def else "Unknown Item"
+            self.pickup_notification_ui.notify(name, quantity)
+        
+        self.game.player.inventory.on_item_added = _on_item_added
 
         self.load_sounds()
     
@@ -383,3 +394,6 @@ class GreenhouseState:
         
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.draw()
+
+        self.pickup_notification_ui.update(dt)
+        self.pickup_notification_ui.draw()

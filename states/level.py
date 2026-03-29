@@ -41,7 +41,7 @@ class LevelState:
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
         self.max_meteorites = 30
-        self.meteor_spawn_timer = Timer(10000)
+        self.meteor_spawn_timer = Timer(60000) # Spawn a meteor every minute
         self.meteor_spawn_timer.activate()
 
         # --- Interaction state (initialised here so handle_input is always safe) ---
@@ -93,7 +93,7 @@ class LevelState:
         self.pickup_notification_ui = PickupNotificationUI(self.screen)
         def _on_item_added(item_id, amount):
             item_def = get_item(item_id)
-            name = item_def.name if item_def else item_id
+            name = item_def.name if item_def else "Unknown Item"
             self.pickup_notification_ui.notify(name, amount)
 
         self.game.player.inventory.on_item_added = _on_item_added
