@@ -149,7 +149,8 @@ class GreenhouseState:
         self.chest_ui = ChestUI(
             self.game.screen,
             self.game.player.inventory,
-            chest.inventory
+            chest.inventory,
+            self.game.player.hotbar if hasattr(self.game.player, 'hotbar') else None
         )
         
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
