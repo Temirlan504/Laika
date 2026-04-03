@@ -266,15 +266,14 @@ class LevelState:
             # Handle death chest ui
             if hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
-                    self._death_chest_ui.close()
-                    self._death_chest_ui = None
-                    return
+                    self._close_death_chest_ui()
+                    continue
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self._death_chest_ui.handle_mouse_down(event.pos)
-                    return
+                    continue
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self._death_chest_ui.handle_mouse_up(event.pos)
-                    return
+                    continue
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -374,6 +373,45 @@ class LevelState:
             chest.inventory,
             self.game.player.hotbar
         )
+    
+    def _close_death_chest_ui(self):
+        """Close the death chest UI and remove the chest if empty."""
+        if not self._death_chest_ui:
+            return
+
+        chest_inventory = self._death_chest_ui.chest_inventory
+
+        # Check if all slots are empty
+        is_empty = all(slot is None for slot in chest_inventory.slots)
+
+        if is_empty:
+            # Find and remove the matching chest from game.death_chests
+            chest_id = None
+            if hasattr(self.game, 'death_chests'):
+                for cid, chest in list(self.game.death_chests.items()):
+                    if chest.inventory is chest_inventory:
+                        chest_id = cid
+                        del self.game.death_chests[cid]
+                        break
+
+            # Remove the sprite from the world
+            for sprite in list(self.all_sprites):
+                from sprites import DeathChest
+                if isinstance(sprite, DeathChest) and getattr(sprite, 'chest_id', None) == chest_id:
+                    sprite.kill()
+                    break
+
+            # Remove the interaction zone
+            if hasattr(self, '_death_chest_zones'):
+                for zone in list(self._death_chest_zones):
+                    if getattr(zone, 'chest_id', None) == chest_id:
+                        zone.kill()
+                        self._death_chest_zones.remove(zone)
+                        break
+
+        self._death_chest_ui.close()
+        self._death_chest_ui = None
+        self.game.hotbar_ui.show()
 
     def _handle_delete_click(self):
         mouse_world_pos = self.mouse_to_world()
