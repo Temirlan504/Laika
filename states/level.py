@@ -1,7 +1,7 @@
 import random
 import pygame
 from items import get_item
-from sprites import GreenhouseDome, Meteorite
+from sprites import GreenhouseDome, Meteorite, DeathChest
 
 from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
@@ -17,6 +17,7 @@ from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
 from ui.hud import IronOreCounterUI, OxygenWarningUI, PickupNotificationUI
+from greenhouse.chest import Chest
 
 
 class LevelState:
@@ -99,6 +100,69 @@ class LevelState:
         self.game.player.inventory.on_item_added = _on_item_added
 
         self.setup_level()
+
+    # ------------------------------------------------------------------
+    # Player death handling
+    # ------------------------------------------------------------------
+    def die(self):
+        """Handle player death — drop items, respawn."""
+        player = self.game.player
+        death_pos = player.rect.center
+
+        # Create death chest at death position with all player items
+        chest_id = f"death_{int(death_pos[0])}_{int(death_pos[1])}"
+        death_chest = Chest.from_player_inventory(chest_id, player)
+
+        # Store chest data in greenhouse_data-style dict so it persists
+        if not hasattr(self.game, 'death_chests'):
+            self.game.death_chests = {}
+        self.game.death_chests[chest_id] = death_chest
+
+        # Spawn the chest sprite
+        chest_sprite = DeathChest(
+            pos=death_pos,
+            groups=[self.all_sprites, self.collision_sprites]
+        )
+        chest_sprite.chest_id = chest_id
+
+        # Add interaction zone for it
+        zone_rect = pygame.Rect(0, 0, 96, 48)
+        zone_rect.center = death_pos
+        # Use a simple zone — create a lightweight one inline
+        self._register_death_chest_zone(chest_sprite, zone_rect)
+
+        # Restore some oxygen and health so the player can move
+        player.current_health  = player.max_health * 0.3
+        player.current_oxygen  = player.max_oxygen
+        player.current_hunger  = player.max_hunger * 0.4
+
+        # Respawn at map spawnpoint
+        spawn = self.game_map.player_spawnpoint
+        if spawn:
+            player.rect.center  = spawn
+            player.hitbox.center = spawn
+        
+        print(f"[DEATH] Player died at {death_pos}, chest spawned with items.")
+
+    def _register_death_chest_zone(self, chest_sprite, zone_rect):
+        """Register a simple interaction zone for a death chest."""
+
+        class DeathChestZone(pygame.sprite.Sprite):
+            def __init__(self, rect, owner):
+                super().__init__()
+                self.rect  = rect
+                self.owner = owner
+                self.text  = "Press E to Open"
+                self.name  = "death_chest"
+                self.image = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+
+        zone = DeathChestZone(zone_rect, chest_sprite)
+        zone.chest_id = chest_sprite.chest_id
+        self.interaction_zones.add(zone)
+
+        if not hasattr(self, '_death_chest_zones'):
+            self._death_chest_zones = []
+        self._death_chest_zones.append(zone)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -199,6 +263,19 @@ class LevelState:
     # ------------------------------------------------------------------
     def handle_input(self, events):
         for event in events:
+            # Handle death chest ui
+            if hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
+                    self._death_chest_ui.close()
+                    self._death_chest_ui = None
+                    return
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self._death_chest_ui.handle_mouse_down(event.pos)
+                    return
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self._death_chest_ui.handle_mouse_up(event.pos)
+                    return
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
@@ -208,6 +285,9 @@ class LevelState:
                         self.state_machine.change_state("pause_menu")
 
                 elif event.key == pygame.K_TAB:
+                    death_chest_open = hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible
+                    if death_chest_open:
+                        return
                     self.game.inventory_ui.toggle()
                     if self.game.inventory_ui.visible:
                         self.game.hotbar_ui.hide()
@@ -219,6 +299,17 @@ class LevelState:
                         return
                     zone = self.current_interaction
 
+                    # Death chest zone
+                    if hasattr(zone, 'name') and zone.name == "death_chest":
+                        chest_id = getattr(zone, 'chest_id', None)
+                        if chest_id and hasattr(self.game, 'death_chests'):
+                            chest = self.game.death_chests.get(chest_id)
+                            if chest:
+                                self.game.hotbar_ui.hide()
+                                self._open_death_chest_ui(chest)
+                        return
+
+                    # Greenhouse door
                     if isinstance(zone, DoorInteractionZone):
                         if self.current_greenhouse:
                             self.state_machine.change_state(
@@ -274,6 +365,15 @@ class LevelState:
                         from_info, to_info, action_type = result
                         if action_type == 'swap':
                             self._resolve_inventory_drag(from_info, to_info)
+
+    def _open_death_chest_ui(self, chest):
+        from greenhouse.chest_ui import ChestUI
+        self._death_chest_ui = ChestUI(
+            self.screen,
+            self.game.player.inventory,
+            chest.inventory,
+            self.game.player.hotbar
+        )
 
     def _handle_delete_click(self):
         mouse_world_pos = self.mouse_to_world()
@@ -604,7 +704,9 @@ class LevelState:
                     self.try_spawn_meteor()
                 self.meteor_spawn_timer.activate()
 
-            if self.game.inventory_ui.visible:
+            death_chest_open = hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible
+
+            if self.game.inventory_ui.visible or death_chest_open:
                 self.game.player.block_input()
             else:
                 self.game.player.unblock_input()
@@ -613,6 +715,11 @@ class LevelState:
             self.oxygen_system.update(self.game.player, dt)
             self.hunger_system.update(self.game.player, dt)
             self.handle_tool_events()
+
+            # Player death check
+            if not self.game.player.is_alive:
+                self.game.player.is_alive = True
+                self.die()
 
         elif dt == 0 and self.game.player:
             self.game.player.block_input()
@@ -636,6 +743,9 @@ class LevelState:
 
         if hasattr(self.game, 'hotbar_ui'):
             self.game.hotbar_ui.draw()
+        
+        if hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible:
+            self._death_chest_ui.draw()
 
         self.iron_ore_counter.draw()
         self.oxygen_warning_ui.draw(dt=dt)

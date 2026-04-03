@@ -1,5 +1,5 @@
 import json
-import os, subprocess
+import os
 from datetime import datetime
 from pathlib import Path
 from utils.support import resource_path
@@ -51,7 +51,8 @@ class SaveManager:
                 'player': self._save_player(game.player),
                 'world': self._save_world(game),
                 'greenhouses': self._save_greenhouses(game),
-                'buildings': self._save_buildings(game)
+                'buildings': self._save_buildings(game),
+                'death_chests': self._save_death_chests(game)
             }
             
             # Write to file
@@ -97,6 +98,7 @@ class SaveManager:
             
             # Store buildings data for later loading (after level state is created)
             game._pending_buildings = save_data.get('buildings', [])
+            game._pending_death_chests = save_data.get('death_chests', [])
             
             print(f"Game loaded from slot {slot}")
             return True
@@ -219,6 +221,40 @@ class SaveManager:
         
         return buildings
     
+    def _save_death_chests(self, game):
+        """Save all death chest data including position and inventory."""
+        if not hasattr(game, 'death_chests'):
+            return []
+
+        result = []
+        level_state = game.state_machine.state_instances.get('level')
+        if not level_state:
+            return result
+
+        # Find each chest sprite to get its world position
+        chest_sprites = {}
+        if hasattr(level_state, 'all_sprites'):
+            from sprites import DeathChest
+            for sprite in level_state.all_sprites:
+                if isinstance(sprite, DeathChest) and hasattr(sprite, 'chest_id'):
+                    chest_sprites[sprite.chest_id] = sprite
+
+        for chest_id, chest in game.death_chests.items():
+            sprite = chest_sprites.get(chest_id)
+            if not sprite:
+                continue
+            result.append({
+                'chest_id': chest_id,
+                'position': {
+                    'x': sprite.rect.centerx,
+                    'y': sprite.rect.centery
+                },
+                'inventory': chest.serialize()
+            })
+
+        return result
+
+
     # ==================== LOAD METHODS ====================
     
     def _load_player(self, player, data):
@@ -375,6 +411,47 @@ class SaveManager:
                 
                 print(f"Loaded greenhouse dome at ({center_x}, {center_y})")
     
+    def _load_death_chests(self, game, data):
+        """Restore death chests into the world."""
+        if not data:
+            return
+
+        import pygame
+        from sprites import DeathChest
+        from greenhouse.chest import Chest
+
+        level_state = game.state_machine.state_instances.get('level')
+        if not level_state:
+            print("[WARN] Cannot load death chests — level state not found")
+            return
+
+        if not hasattr(game, 'death_chests'):
+            game.death_chests = {}
+
+        for entry in data:
+            chest_id = entry['chest_id']
+            pos = entry['position']
+            center = (pos['x'], pos['y'])
+
+            # Recreate chest with saved inventory
+            chest = Chest(chest_id)
+            chest.load(entry.get('inventory'))
+            game.death_chests[chest_id] = chest
+
+            # Spawn the sprite
+            chest_sprite = DeathChest(
+                pos=center,
+                groups=[level_state.all_sprites, level_state.collision_sprites]
+            )
+            chest_sprite.chest_id = chest_id
+
+            # Register interaction zone
+            zone_rect = pygame.Rect(0, 0, 96, 48)
+            zone_rect.center = center
+            level_state._register_death_chest_zone(chest_sprite, zone_rect)
+
+            print(f"[LOAD] Death chest '{chest_id}' restored at {center}")
+    
     def load_pending_buildings(self, game):
         """Load buildings that were deferred during game load"""
         if hasattr(game, '_pending_buildings'):
@@ -382,6 +459,12 @@ class SaveManager:
             self._load_buildings(game, buildings_data)
             del game._pending_buildings
             print(f"Loaded {len(buildings_data)} pending buildings")
+        
+        if hasattr(game, '_pending_death_chests'):
+            death_chests_data = game._pending_death_chests
+            self._load_death_chests(game, death_chests_data)
+            del game._pending_death_chests
+            print(f"Loaded {len(death_chests_data)} pending death chests")
     
     def auto_save(self, game):
         """Perform an auto-save (uses slot 0 as auto-save slot)"""

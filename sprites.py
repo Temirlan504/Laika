@@ -117,3 +117,15 @@ class Meteorite(pygame.sprite.Sprite):
         flash_surface = self.image.copy()
         flash_surface.fill((255, 255, 255, 100), special_flags=pygame.BLEND_RGBA_ADD)
         self.image = flash_surface
+
+class DeathChest(pygame.sprite.Sprite):
+    def __init__(self, pos, groups):
+        super().__init__(groups)
+        try:
+            self.image = pygame.image.load(resource_path("assets/chest.png")).convert_alpha()
+            self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
+        except FileNotFoundError:
+            self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
+            self.image.fill((139, 90, 43))
+        self.rect  = self.image.get_rect(center=pos)
+        self.z_index = 2
