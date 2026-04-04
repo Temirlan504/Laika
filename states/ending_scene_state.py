@@ -17,7 +17,7 @@ class EndingSceneState:
         self.current_phase = self.PHASE_LYING_DOWN
         
         # Timing
-        self.lying_down_duration = 3.0  # 3 seconds of lying down before fade
+        self.lying_down_duration = 7.0  # 7 seconds of lying down before fade
         self.timer = 0
         
         # Player animation state
@@ -54,6 +54,12 @@ class EndingSceneState:
             self.game.inventory_ui.visible = False
         if self.game.hotbar_ui:
             self.game.hotbar_ui.visible = False
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = False
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = False
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = False
         
         # Reset state
         self.current_phase = self.PHASE_LYING_DOWN

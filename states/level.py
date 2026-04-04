@@ -230,6 +230,10 @@ class LevelState:
         self.ending_triggered = False
         self.game.day_ui.day = self.game.day_cycle.day
 
+        # Restore clock speed in case it was stopped by the ending scene
+        if hasattr(self.game, 'clock_system'):
+            self.game.clock_system.speed = 1
+
         if not self.game.player:
             print("ERROR: Level entered without player! Returning to main menu.")
             self.state_machine.change_state("main_menu")
@@ -506,7 +510,7 @@ class LevelState:
             self.ending_triggered = True
             if self.game.player:
                 self.game.player.block_input()
-            self.state_machine.change_state("credits")
+            self.state_machine.change_state("ending_scene")
             return True
         return False
 
