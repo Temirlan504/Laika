@@ -147,8 +147,9 @@ class SoilTile(pygame.sprite.Sprite):
 
         crop_name = self.plant.plant_type
 
-        # Give back 1 seed (sustainable farming!)
-        player.add_item(f"{crop_name}_seed", 1)
+        # Give back 1-3 seeds (sustainable farming!)
+        seed_amount = random.randint(1, 3)
+        player.add_item(f"{crop_name}_seed", seed_amount)
 
         # Give 1-3 crops
         crop_amount = random.randint(1, 3)
