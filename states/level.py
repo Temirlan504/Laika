@@ -232,7 +232,7 @@ class LevelState:
 
         # Restore clock speed in case it was stopped by the ending scene
         if hasattr(self.game, 'clock_system'):
-            self.game.clock_system.speed = 1
+            self.game.clock_system.speed = CLOCK_SPEED
 
         if not self.game.player:
             print("ERROR: Level entered without player! Returning to main menu.")

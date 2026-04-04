@@ -34,9 +34,16 @@ class EndingSceneState:
         self.show_text = True
     
     def on_enter(self, **kwargs):
-        """Called when entering this state"""
         print("[ENDING] Entering ending scene...")
         
+        self.current_phase = self.PHASE_LYING_DOWN
+        self.timer = 0
+        self.text_alpha = 0
+        self.text_fade_in = True
+        self.player_lying_down = False
+        self.fade_effect = FadeEffect(self.screen)  # fresh fade, no leftover state
+        self.scroll_y = self.screen.get_height()
+
         # Block player input
         if self.game.player:
             self.game.player.block_input()
