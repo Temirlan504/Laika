@@ -22,7 +22,7 @@ from greenhouse.chest import Chest
 
 class LevelState:
     # --- Class-level constants ---
-    LAST_SOL = 3
+    LAST_SOL = 300
     DOME_IRON_COST = 50
     MAX_DOMES = 15
 
