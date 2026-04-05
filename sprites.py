@@ -122,7 +122,7 @@ class DeathChest(pygame.sprite.Sprite):
     def __init__(self, pos, groups):
         super().__init__(groups)
         try:
-            self.image = pygame.image.load(resource_path("assets/chest.png")).convert_alpha()
+            self.image = pygame.image.load(resource_path("assets/tilesets/objects/chest.png")).convert_alpha()
             self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
         except FileNotFoundError:
             self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))

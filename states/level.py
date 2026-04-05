@@ -126,7 +126,7 @@ class LevelState:
         chest_sprite.chest_id = chest_id
 
         # Add interaction zone for it
-        zone_rect = pygame.Rect(0, 0, 96, 48)
+        zone_rect = pygame.Rect(0, 0, 48, 86)
         zone_rect.center = death_pos
         # Use a simple zone — create a lightweight one inline
         self._register_death_chest_zone(chest_sprite, zone_rect)
