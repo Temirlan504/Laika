@@ -21,22 +21,34 @@ class Chest:
 
     @classmethod
     def from_player_inventory(cls, chest_id, player):
-        """Create a chest pre-filled with everything from the player's inventory and hotbar."""
+        """Create a chest pre-filled with everything from the player's inventory and hotbar, keeping tools."""
+        from items import ItemType, get_item
         chest = cls(chest_id)
 
-        # Transfer inventory slots
+        # Transfer inventory slots — skip tools
         for i, slot in enumerate(player.inventory.slots):
             if slot:
+                item_def = get_item(slot["item_id"])
+                if item_def and item_def.type == ItemType.TOOL:
+                    continue
                 chest.inventory.set_slot(i, dict(slot))
                 player.inventory.set_slot(i, None)
 
-        # Transfer hotbar slots into remaining chest space
+        # Transfer hotbar slots — skip tools
         for slot in player.hotbar.slots:
             if slot:
+                item_def = get_item(slot["item_id"])
+                if item_def and item_def.type == ItemType.TOOL:
+                    continue
                 chest.inventory.add_item(slot["item_id"], slot["quantity"])
 
-        # Clear hotbar
+        # Clear hotbar non-tool slots
         for i in range(player.hotbar.num_slots):
-            player.hotbar.set_slot(i, None)
+            slot = player.hotbar.get_slot(i)
+            if slot:
+                item_def = get_item(slot["item_id"])
+                if item_def and item_def.type == ItemType.TOOL:
+                    continue
+                player.hotbar.set_slot(i, None)
 
         return chest
