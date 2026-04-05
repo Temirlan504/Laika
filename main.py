@@ -3,6 +3,7 @@ import sys
 
 from utils.save_manager import SaveManager
 from utils.settings import *
+from utils.support import resource_path
 
 from states.main_menu import MainMenuState
 from states.level import LevelState
@@ -26,6 +27,7 @@ class Game:
         pygame.mixer.init()
         self.music_system = AmbientMusicSystem()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+        pygame.display.set_icon(pygame.image.load(resource_path("assets/icon.png")))
         pygame.display.set_caption("Laika: Space Adventure")
         self.clock = pygame.time.Clock()
 

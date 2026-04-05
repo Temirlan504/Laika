@@ -26,8 +26,6 @@ class CreditsState:
         # Credits data (customize this with your actual credits!)
         self.credits_data = [
             "",
-            "",
-            "",
             ("THE END", "title"),
             "",
             "",
@@ -41,7 +39,6 @@ class CreditsState:
             "",
             "",
             ("Thank you for playing!", "header"),
-            "",
             "",
             "",
             ("Press ESC to return to main menu", "small"),
@@ -65,7 +62,7 @@ class CreditsState:
         
         # THE END display
         self.the_end_timer = 0
-        self.the_end_duration = 30.0  # Show THE END for 3 seconds
+        self.the_end_duration = 5  # Show THE END for 5 seconds
         self.the_end_alpha = 0
         self.the_end_fade_speed = 150  # Alpha per second
     
@@ -100,6 +97,14 @@ class CreditsState:
             self.game.interaction_prompt.visible = False
         if self.game.inventory_ui:
             self.game.inventory_ui.visible = False
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = False
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = False
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = False
+        if self.game.hotbar_ui:
+            self.game.hotbar_ui.visible = False
         
         # Reset state
         self.current_phase = self.PHASE_THE_END

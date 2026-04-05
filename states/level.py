@@ -1,11 +1,13 @@
 import random
 import pygame
-from sprites import GreenhouseDome, Meteorite
+from items import get_item
+from sprites import GreenhouseDome, Meteorite, DeathChest
 
 from utils.settings import *
 from utils.fade_effect import FadeEffect, NightOverlay
 from utils.map_loader import MapLoader
 from utils.timer import Timer
+from utils.support import resource_path
 
 from camera import CameraGroup
 from building.preview import DomePreview
@@ -14,7 +16,8 @@ from building.door import DoorInteractionZone
 from systems.time_system_fsm import SleepState
 from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
-from ui.hud import IronOreCounterUI
+from ui.hud import IronOreCounterUI, OxygenWarningUI, PickupNotificationUI
+from greenhouse.chest import Chest
 
 
 class LevelState:
@@ -39,7 +42,7 @@ class LevelState:
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
         self.max_meteorites = 30
-        self.meteor_spawn_timer = Timer(10000)
+        self.meteor_spawn_timer = Timer(60000) # Spawn a meteor every minute
         self.meteor_spawn_timer.activate()
 
         # --- Interaction state (initialised here so handle_input is always safe) ---
@@ -54,7 +57,7 @@ class LevelState:
         self.debug_timer = 0
 
         # Load Tiled map
-        self.map_path = 'data/tmx/main.tmx'
+        self.map_path = resource_path('data/tmx/main.tmx')
         self.game_map = MapLoader(self.map_path)
 
         self.all_sprites = CameraGroup(
@@ -69,7 +72,7 @@ class LevelState:
 
         # Load greenhouse image — kept as an instance attribute so _spawn_dome
         # can reuse it without reloading from disk each time.
-        dome_image = pygame.image.load("assets/dome.png").convert_alpha()
+        dome_image = pygame.image.load(resource_path("assets/dome.png")).convert_alpha()
         dome_image = pygame.transform.scale(dome_image, (612, 429))
         self._dome_image = dome_image
         self.preview = DomePreview(dome_image)
@@ -84,7 +87,82 @@ class LevelState:
         # HUD: iron ore counter
         self.iron_ore_counter = IronOreCounterUI(self.game.player, self.screen)
 
+        # Oxygen warnings
+        self.oxygen_warning_ui = OxygenWarningUI(self.game.player, self.screen)
+
+        # Pickup notifications
+        self.pickup_notification_ui = PickupNotificationUI(self.screen)
+        def _on_item_added(item_id, amount):
+            item_def = get_item(item_id)
+            name = item_def.name if item_def else "Unknown Item"
+            self.pickup_notification_ui.notify(name, amount)
+
+        self.game.player.inventory.on_item_added = _on_item_added
+
         self.setup_level()
+
+    # ------------------------------------------------------------------
+    # Player death handling
+    # ------------------------------------------------------------------
+    def die(self):
+        """Handle player death — drop items, respawn."""
+        player = self.game.player
+        death_pos = player.rect.center
+
+        # Create death chest at death position with all player items
+        chest_id = f"death_{int(death_pos[0])}_{int(death_pos[1])}"
+        death_chest = Chest.from_player_inventory(chest_id, player)
+
+        # Store chest data in greenhouse_data-style dict so it persists
+        if not hasattr(self.game, 'death_chests'):
+            self.game.death_chests = {}
+        self.game.death_chests[chest_id] = death_chest
+
+        # Spawn the chest sprite
+        chest_sprite = DeathChest(
+            pos=death_pos,
+            groups=[self.all_sprites, self.collision_sprites]
+        )
+        chest_sprite.chest_id = chest_id
+
+        # Add interaction zone for it
+        zone_rect = pygame.Rect(0, 0, 48, 86)
+        zone_rect.center = death_pos
+        # Use a simple zone — create a lightweight one inline
+        self._register_death_chest_zone(chest_sprite, zone_rect)
+
+        # Restore some oxygen and health so the player can move
+        player.current_health  = player.max_health * 0.3
+        player.current_oxygen  = player.max_oxygen
+        player.current_hunger  = player.max_hunger * 0.4
+
+        # Respawn at map spawnpoint
+        spawn = self.game_map.player_spawnpoint
+        if spawn:
+            player.rect.center  = spawn
+            player.hitbox.center = spawn
+        
+        print(f"[DEATH] Player died at {death_pos}, chest spawned with items.")
+
+    def _register_death_chest_zone(self, chest_sprite, zone_rect):
+        """Register a simple interaction zone for a death chest."""
+
+        class DeathChestZone(pygame.sprite.Sprite):
+            def __init__(self, rect, owner):
+                super().__init__()
+                self.rect  = rect
+                self.owner = owner
+                self.text  = "Press E to Open"
+                self.name  = "death_chest"
+                self.image = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+
+        zone = DeathChestZone(zone_rect, chest_sprite)
+        zone.chest_id = chest_sprite.chest_id
+        self.interaction_zones.add(zone)
+
+        if not hasattr(self, '_death_chest_zones'):
+            self._death_chest_zones = []
+        self._death_chest_zones.append(zone)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -149,6 +227,13 @@ class LevelState:
         return dome
 
     def on_enter(self, return_pos=None, **kwargs):
+        self.ending_triggered = False
+        self.game.day_ui.day = self.game.day_cycle.day
+
+        # Restore clock speed in case it was stopped by the ending scene
+        if hasattr(self.game, 'clock_system'):
+            self.game.clock_system.speed = CLOCK_SPEED
+
         if not self.game.player:
             print("ERROR: Level entered without player! Returning to main menu.")
             self.state_machine.change_state("main_menu")
@@ -164,6 +249,12 @@ class LevelState:
             self.game.inventory_ui.visible = False
         if self.game.hotbar_ui:
             self.game.hotbar_ui.visible = True
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = True
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = True
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = True
 
         self.game.player.unblock_input()
 
@@ -176,6 +267,18 @@ class LevelState:
     # ------------------------------------------------------------------
     def handle_input(self, events):
         for event in events:
+            # Handle death chest ui
+            if hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
+                    self._close_death_chest_ui()
+                    continue
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self._death_chest_ui.handle_mouse_down(event.pos)
+                    continue
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self._death_chest_ui.handle_mouse_up(event.pos)
+                    continue
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if self.game.inventory_ui.visible:
@@ -185,6 +288,9 @@ class LevelState:
                         self.state_machine.change_state("pause_menu")
 
                 elif event.key == pygame.K_TAB:
+                    death_chest_open = hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible
+                    if death_chest_open:
+                        return
                     self.game.inventory_ui.toggle()
                     if self.game.inventory_ui.visible:
                         self.game.hotbar_ui.hide()
@@ -196,6 +302,17 @@ class LevelState:
                         return
                     zone = self.current_interaction
 
+                    # Death chest zone
+                    if hasattr(zone, 'name') and zone.name == "death_chest":
+                        chest_id = getattr(zone, 'chest_id', None)
+                        if chest_id and hasattr(self.game, 'death_chests'):
+                            chest = self.game.death_chests.get(chest_id)
+                            if chest:
+                                self.game.hotbar_ui.hide()
+                                self._open_death_chest_ui(chest)
+                        return
+
+                    # Greenhouse door
                     if isinstance(zone, DoorInteractionZone):
                         if self.current_greenhouse:
                             self.state_machine.change_state(
@@ -251,6 +368,54 @@ class LevelState:
                         from_info, to_info, action_type = result
                         if action_type == 'swap':
                             self._resolve_inventory_drag(from_info, to_info)
+
+    def _open_death_chest_ui(self, chest):
+        from greenhouse.chest_ui import ChestUI
+        self._death_chest_ui = ChestUI(
+            self.screen,
+            self.game.player.inventory,
+            chest.inventory,
+            self.game.player.hotbar
+        )
+    
+    def _close_death_chest_ui(self):
+        """Close the death chest UI and remove the chest if empty."""
+        if not self._death_chest_ui:
+            return
+
+        chest_inventory = self._death_chest_ui.chest_inventory
+
+        # Check if all slots are empty
+        is_empty = all(slot is None for slot in chest_inventory.slots)
+
+        if is_empty:
+            # Find and remove the matching chest from game.death_chests
+            chest_id = None
+            if hasattr(self.game, 'death_chests'):
+                for cid, chest in list(self.game.death_chests.items()):
+                    if chest.inventory is chest_inventory:
+                        chest_id = cid
+                        del self.game.death_chests[cid]
+                        break
+
+            # Remove the sprite from the world
+            for sprite in list(self.all_sprites):
+                from sprites import DeathChest
+                if isinstance(sprite, DeathChest) and getattr(sprite, 'chest_id', None) == chest_id:
+                    sprite.kill()
+                    break
+
+            # Remove the interaction zone
+            if hasattr(self, '_death_chest_zones'):
+                for zone in list(self._death_chest_zones):
+                    if getattr(zone, 'chest_id', None) == chest_id:
+                        zone.kill()
+                        self._death_chest_zones.remove(zone)
+                        break
+
+        self._death_chest_ui.close()
+        self._death_chest_ui = None
+        self.game.hotbar_ui.show()
 
     def _handle_delete_click(self):
         mouse_world_pos = self.mouse_to_world()
@@ -581,7 +746,9 @@ class LevelState:
                     self.try_spawn_meteor()
                 self.meteor_spawn_timer.activate()
 
-            if self.game.inventory_ui.visible:
+            death_chest_open = hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible
+
+            if self.game.inventory_ui.visible or death_chest_open:
                 self.game.player.block_input()
             else:
                 self.game.player.unblock_input()
@@ -590,6 +757,11 @@ class LevelState:
             self.oxygen_system.update(self.game.player, dt)
             self.hunger_system.update(self.game.player, dt)
             self.handle_tool_events()
+
+            # Player death check
+            if not self.game.player.is_alive:
+                self.game.player.is_alive = True
+                self.die()
 
         elif dt == 0 and self.game.player:
             self.game.player.block_input()
@@ -613,5 +785,11 @@ class LevelState:
 
         if hasattr(self.game, 'hotbar_ui'):
             self.game.hotbar_ui.draw()
+        
+        if hasattr(self, '_death_chest_ui') and self._death_chest_ui and self._death_chest_ui.visible:
+            self._death_chest_ui.draw()
 
         self.iron_ore_counter.draw()
+        self.oxygen_warning_ui.draw(dt=dt)
+        self.pickup_notification_ui.update(dt)
+        self.pickup_notification_ui.draw()

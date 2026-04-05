@@ -1,7 +1,7 @@
 import pygame
 import sys
-import os
 from utils.button import Button, clamp
+from utils.support import resource_path
 
 class MainMenuState:
     def __init__(self, state_machine, game):
@@ -10,11 +10,44 @@ class MainMenuState:
         self.screen = game.screen
 
         self.load_fonts()
-        self.load_background()
         self.load_sounds()
+        self.load_background()
         
         # Create buttons only
         self.create_buttons()
+    
+    
+    def load_fonts(self):
+        font_path = resource_path("assets/fonts/PressStart2P.ttf")
+        try:
+            self.button_font = pygame.font.Font(font_path, 35)
+        except FileNotFoundError:
+            print("Warning: PressStart2P.ttf not found, using default font")
+            self.button_font = pygame.font.Font(None, 45)
+
+    def load_sounds(self):
+        self.sounds = {}
+        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
+                            ('click', 'assets/sounds/button_click.ogg')]:
+            try:
+                sound = pygame.mixer.Sound(resource_path(path))
+                sound.set_volume(0.5)
+                self.sounds[name] = sound
+            except Exception as e:
+                print(f"[SOUND] Could not load {name}: {e}")
+                self.sounds[name] = None
+
+    def load_background(self):
+        try:
+            self.background_original = pygame.image.load(resource_path("assets/main_menu_bg.png")).convert()
+        except FileNotFoundError:
+            self.background_original = pygame.Surface((self.screen.get_width(), self.screen.get_height()))
+            self.background_original.fill((40, 40, 40))
+
+        self.background = pygame.transform.scale(
+            self.background_original,
+            (self.screen.get_width(), self.screen.get_height())
+        )
     
     def on_enter(self, **kwargs):
         """Called when entering main menu state"""
@@ -40,46 +73,6 @@ class MainMenuState:
             self.background_original,
             (self.screen.get_width(), self.screen.get_height())
         )
-    
-    def load_fonts(self):
-        """Load Press Start 2P font or fallback"""
-        font_path = "assets/fonts/PressStart2P.ttf"
-        
-        # Try to load custom font
-        if os.path.exists(font_path):
-            self.button_font = pygame.font.Font(font_path, 35)
-        else:
-            # Fallback to system font
-            print("Warning: PressStart2P.ttf not found, using default font")
-            self.button_font = pygame.font.Font(None, 45)
-
-    def load_sounds(self):
-        self.sounds = {}
-        for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
-                            ('click', 'assets/sounds/button_click.ogg')]:
-            try:
-                sound = pygame.mixer.Sound(path)
-                sound.set_volume(0.5)
-                self.sounds[name] = sound
-            except Exception as e:
-                print(f"[SOUND] Could not load {name}: {e}")
-                self.sounds[name] = None
-    
-    def load_background(self):
-        bg_path = "assets/main_menu_bg.png"
-
-        if os.path.exists(bg_path):
-            self.background_original = pygame.image.load(bg_path).convert()
-            self.background = pygame.transform.scale(
-                self.background_original,
-                (self.screen.get_width(), self.screen.get_height())
-            )
-        else:
-            self.background_original = pygame.Surface(
-                (self.screen.get_width(), self.screen.get_height())
-            )
-            self.background_original.fill((40, 40, 40))
-            self.background = self.background_original.copy()
 
     def create_buttons(self):
         """Create menu buttons"""
@@ -122,6 +115,9 @@ class MainMenuState:
         self.buttons.append(continue_btn)
 
         settings_btn = add_button("SETTINGS", 2, self.open_settings)
+        settings_btn.normal_color = (100, 100, 100)
+        settings_btn.hover_color = (100, 100, 100)
+        settings_btn.callback = None
         self.buttons.append(settings_btn)
 
         quit_btn = add_button("QUIT", 3, self.quit_game)
@@ -145,6 +141,12 @@ class MainMenuState:
     def new_game(self):
         """Start a new game"""
         print("Starting new game...")
+
+        # Clear stale level/greenhouse state so they're recreated fresh
+        if "level" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["level"]
+        if "greenhouse" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["greenhouse"]
         
         # Initialize player and game systems
         self.game.initialize_game()

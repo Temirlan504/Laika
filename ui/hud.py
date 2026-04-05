@@ -1,8 +1,8 @@
-import os
 import pygame
 from items import get_item
 from ui.ui_element import UIElement
 from ui.ui_config import ui_config
+from utils.support import resource_path, load_item_image
 
 class DayUI(UIElement):
     def __init__(self, day_cycle, clock, screen):
@@ -13,12 +13,10 @@ class DayUI(UIElement):
         
         # Load background image
         self.bg_image = None
-        bg_path = "assets/ui/day_time_bg.png"
-        if os.path.exists(bg_path):
-            try:
-                self.bg_image = pygame.image.load(bg_path).convert_alpha()
-            except Exception as e:
-                print(f"[DAY_UI] Error loading background image: {e}")
+        try:
+            self.bg_image = pygame.image.load(resource_path("assets/ui/day_time_bg.png")).convert_alpha()
+        except FileNotFoundError:
+            self.bg_image = None
         
         # Fonts - customize sizes here
         self.day_font = ui_config.get_font(20)
@@ -100,12 +98,11 @@ class IronOreCounterUI(UIElement):
         # Load and scale ore icon to fit inside the bar
         self._icon  = None
         icon_size   = self.panel_height - 8   # 4 px padding top and bottom
-        if os.path.exists(self.IMAGE_PATH):
-            try:
-                raw        = pygame.image.load(self.IMAGE_PATH).convert_alpha()
-                self._icon = pygame.transform.scale(raw, (icon_size, icon_size))
-            except Exception as e:
-                print(f"[IRON_ORE_UI] Failed to load icon: {e}")
+        try:
+            raw = pygame.image.load(resource_path(self.IMAGE_PATH)).convert_alpha()
+            self._icon = pygame.transform.scale(raw, (icon_size, icon_size))
+        except FileNotFoundError:
+            self._icon = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -188,12 +185,10 @@ class HotbarUI:
         
         # Load background image
         self.bg_image = None
-        bg_path = "assets/ui/hotbar_bg.png"
-        if os.path.exists(bg_path):
-            try:
-                self.bg_image = pygame.image.load(bg_path).convert_alpha()
-            except Exception as e:
-                print(f"[HOTBAR] Error loading background image: {e}")
+        try:
+            self.bg_image = pygame.image.load(resource_path("assets/ui/hotbar_bg.png")).convert_alpha()
+        except FileNotFoundError:
+            self.bg_image = None
         
         # Visual settings
         self.slot_size = 64
@@ -273,45 +268,21 @@ class HotbarUI:
         item = get_item(slot["item_id"])
         if not item:
             return
-        
-        item_image = None
-        item_id = slot['item_id']
-        
-        possible_paths = [
-            f"assets/items/{item_id}.png",
-            f"assets/items/tools/{item_id}.png",
-            f"assets/items/seeds/{item_id}.png",
-            f"assets/items/crops/{item_id}.png",
-            f"assets/items/resources/{item_id}.png",
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    item_image = pygame.image.load(path).convert_alpha()
-                    image_size = int(self.slot_size * 0.65)
-                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
-                    break
-                except Exception as e:
-                    print(f"[HOTBAR] Error loading {path}: {e}")
-        
+
+        item_image = load_item_image(slot["item_id"], self.slot_size)
+
         if item_image:
-            image_rect = item_image.get_rect(center=rect.center)
-            self.screen.blit(item_image, image_rect)
+            self.screen.blit(item_image, item_image.get_rect(center=rect.center))
         else:
-            name_font = ui_config.get_font(10)
-            name_text = item.name[:6]
-            name = name_font.render(name_text, True, ui_config.WHITE)
-            name_rect = name.get_rect(center=rect.center)
-            self.screen.blit(name, name_rect)
-        
+            name = ui_config.get_font(10).render(item.name[:6], True, ui_config.WHITE)
+            self.screen.blit(name, name.get_rect(center=rect.center))
+
         if slot["quantity"] > 1:
             qty_text = str(slot["quantity"])
             qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
             qty_shadow = self.qty_font.render(qty_text, True, (0, 0, 0))
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
-
 
 class HealthBarUI(UIElement):
     def __init__(self, player, screen):
@@ -452,3 +423,154 @@ class HungerBarUI(UIElement):
         text_surface = self.font.render(text, True, ui_config.WHITE)
         text_rect = text_surface.get_rect(center=(x + self.bar_width // 2, y + self.bar_height // 2))
         self.screen.blit(text_surface, text_rect)
+
+
+class OxygenWarningUI(UIElement):
+    """Displays a pulsing 'OXYGEN LOW' warning at the top of the screen."""
+
+    WARN_THRESHOLD = 20
+    CRIT_THRESHOLD = 10
+
+    def __init__(self, player, screen):
+        super().__init__()
+        self.player = player
+        self.screen = screen
+        self.visible = True
+
+        self.font   = ui_config.get_font(70)
+        self._pulse = 0.0
+        self._vignette_surf = None  # Cached surface, rebuilt on resize
+
+    def _draw_vignette(self, o2):
+        """Red corner vignette that fades in from o2=15 down to full at o2=10."""
+
+        VIGNETTE_START = 15
+        VIGNETTE_FULL  = 10
+        MAX_ALPHA      = 100   # 50% opacity at full strength
+
+        if o2 >= VIGNETTE_START:
+            return
+
+        # t = 0.0 at o2=15, 1.0 at o2=10
+        t = 1.0 - max(0.0, min(1.0, (o2 - VIGNETTE_FULL) / (VIGNETTE_START - VIGNETTE_FULL)))
+        vignette_alpha = int(MAX_ALPHA * t)
+
+        if vignette_alpha <= 0:
+            return
+
+        sw, sh = self.screen.get_size()
+
+        # Rebuild cached surface only when screen size changes
+        if self._vignette_surf is None or self._vignette_surf.get_size() != (sw, sh):
+            surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+
+            # Build vignette: concentric ellipses from edge (opaque) inward (transparent)
+            steps = 80
+            for i in range(steps, 0, -1):
+                ratio = i / steps
+                a     = int(255 * ratio)
+                w     = int(sw * ratio * 1.5)  # Extend beyond edges for stronger corners
+                h     = int(sh * ratio * 1.5)
+                x     = (sw - w) // 2
+                y     = (sh - h) // 2
+                pygame.draw.ellipse(surf, (180, 0, 0, a), (x, y, w, h))
+
+            # Punch a transparent hole in the centre so only the edges/corners glow
+            cx_w = int(sw * 0.9)
+            cx_h = int(sh * 0.9)
+            cx   = (sw - cx_w) // 2
+            cy   = (sh - cx_h) // 2
+            pygame.draw.ellipse(surf, (0, 0, 0, 0), (cx, cy, cx_w, cx_h))
+
+            self._vignette_surf = surf
+
+        self._vignette_surf.set_alpha(vignette_alpha)
+        self.screen.blit(self._vignette_surf, (0, 0))
+
+    def draw(self, dt=0):
+        import math
+        o2 = self.player.current_oxygen
+
+        # Vignette is independent — starts earlier than the text warning
+        self._draw_vignette(o2)
+
+        if o2 >= self.WARN_THRESHOLD:
+            return
+
+        if o2 < self.CRIT_THRESHOLD:
+            base_color = (255, 0, 0)
+        else:
+            base_color = (220, 200, 50)
+
+        self._pulse += dt * 4.0
+        alpha = int(167 + 88 * math.sin(self._pulse))
+
+        text_surf = self.font.render("OXYGEN LOW", True, base_color)
+        text_rect = text_surf.get_rect(
+            centerx=self.screen.get_width() // 2,
+            top=80
+        )
+
+        # Apply alpha via a temporary surface so the font renders cleanly
+        alpha_surf = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
+        alpha_surf.blit(text_surf, (0, 0))
+        alpha_surf.set_alpha(alpha)
+
+        self.screen.blit(alpha_surf, text_rect)
+
+
+class PickupNotificationUI(UIElement):
+    """Shows '+N item_name' toast notifications in the bottom-right corner."""
+
+    DISPLAY_TIME = 2.5   # Seconds each notification stays visible
+    FADE_TIME    = 0.5   # Seconds to fade out
+    MAX_VISIBLE  = 5     # Max stacked notifications on screen
+
+    def __init__(self, screen):
+        super().__init__()
+        self.screen = screen
+        self.font   = ui_config.get_font(14)
+        self._queue = []  # List of {text, timer, alpha}
+
+    def notify(self, item_name, count):
+        """Call this whenever an item is picked up."""
+        text = f"+{count} {item_name}"
+
+        # If the same item is already showing, just reset its timer
+        for entry in self._queue:
+            if entry["text"] == text:
+                entry["timer"] = self.DISPLAY_TIME
+                entry["alpha"] = 255
+                return
+
+        self._queue.append({"text": text, "timer": self.DISPLAY_TIME, "alpha": 255})
+
+        # Keep only the most recent MAX_VISIBLE
+        if len(self._queue) > self.MAX_VISIBLE:
+            self._queue.pop(0)
+
+    def update(self, dt):
+        for entry in self._queue:
+            entry["timer"] -= dt
+            # Fade out during the last FADE_TIME seconds
+            if entry["timer"] < self.FADE_TIME:
+                entry["alpha"] = int(255 * max(0, entry["timer"] / self.FADE_TIME))
+
+        self._queue = [e for e in self._queue if e["timer"] > 0]
+
+    def draw(self):
+        if not self._queue:
+            return
+
+        padding_right  = 20
+        padding_bottom = 120   # Sits above the hotbar
+        line_height    = 22
+
+        for i, entry in enumerate(reversed(self._queue)):
+            text_surf = self.font.render(entry["text"], True, (200, 200, 200))
+            text_surf.set_alpha(entry["alpha"])
+
+            x = self.screen.get_width()  - text_surf.get_width() - padding_right
+            y = self.screen.get_height() - padding_bottom - i * line_height
+
+            self.screen.blit(text_surf, (x, y))

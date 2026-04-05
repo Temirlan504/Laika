@@ -1,7 +1,7 @@
 import pygame
-import os
 from items import get_item
 from ui.ui_config import ui_config
+from utils.support import resource_path, load_item_image
 
 class InventoryUI:
     def __init__(self, screen, inventory, hotbar):
@@ -16,12 +16,10 @@ class InventoryUI:
 
         # Load hotbar background image
         self.hotbar_bg_image = None
-        hotbar_bg_path = "assets/ui/hotbar_bg.png"
-        if os.path.exists(hotbar_bg_path):
-            try:
-                self.hotbar_bg_image = pygame.image.load(hotbar_bg_path).convert_alpha()
-            except Exception as e:
-                print(f"[INVENTORY] Error loading hotbar background: {e}")
+        try:
+            self.hotbar_bg_image = pygame.image.load(resource_path("assets/ui/hotbar_bg.png")).convert_alpha()
+        except FileNotFoundError:
+            self.hotbar_bg_image = None
         
         self.panel_width = 600
         self.panel_height = 600
@@ -460,53 +458,22 @@ class InventoryUI:
             self.draw_tooltip(self.tooltip_slot)
 
     def draw_item_in_slot(self, slot, rect, alpha=255):
-        """Draw an item inside a slot"""
         item = get_item(slot["item_id"])
         if not item:
             return
-        
-        # Try to load item sprite/texture from multiple possible paths
-        item_image = None
-        item_id = slot['item_id']
-        
-        # Try different paths (in order of preference)
-        possible_paths = [
-            f"assets/items/{item_id}.png",              # Flat structure
-            f"assets/items/tools/{item_id}.png",        # Tools subfolder
-            f"assets/items/seeds/{item_id}.png",        # Seeds subfolder
-            f"assets/items/crops/{item_id}.png",        # Crops subfolder
-            f"assets/items/resources/{item_id}.png",    # Resources subfolder
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    item_image = pygame.image.load(path).convert_alpha()
-                    # Scale to fit slot (leave some padding)
-                    image_size = int(self.slot_size * 0.6)  # 60% of slot size
-                    item_image = pygame.transform.scale(item_image, (image_size, image_size))
-                    break
-                except Exception as e:
-                    print(f"[INVENTORY] Error loading {path}: {e}")
-                    item_image = None
-        
+
+        item_image = load_item_image(slot["item_id"], self.slot_size)
+
         if item_image:
-            # Draw item image centered in slot
             image_rect = item_image.get_rect(center=rect.center)
-            
             if alpha < 255:
-                # Apply transparency
-                temp_surface = item_image.copy()
-                temp_surface.set_alpha(alpha)
-                self.screen.blit(temp_surface, image_rect)
+                temp = item_image.copy()
+                temp.set_alpha(alpha)
+                self.screen.blit(temp, image_rect)
             else:
                 self.screen.blit(item_image, image_rect)
         else:
-            # Fallback: draw item name as text
-            name_text = item.name
-            if len(name_text) > 8:
-                name_text = name_text[:6] + ".."
-            
+            name_text = item.name[:6] + ".." if len(item.name) > 8 else item.name
             if alpha < 255:
                 text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
                 name = self.item_font.render(name_text, True, (*ui_config.WHITE, alpha))
@@ -515,10 +482,8 @@ class InventoryUI:
             else:
                 name = self.item_font.render(name_text, True, ui_config.WHITE)
                 self.screen.blit(name, (rect.x + 4, rect.y + 4))
-        
-        # Draw quantity in bottom-right corner
+
         qty_text = str(slot["quantity"])
-        
         if alpha < 255:
             text_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             qty = self.qty_font.render(qty_text, True, (*ui_config.WHITE, alpha))

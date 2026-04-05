@@ -1,10 +1,10 @@
 import pygame
 from utils.button import Button
 from utils.settings import SCREEN_WIDTH, SCREEN_HEIGHT
+from utils.support import resource_path
 
 class SaveLoadMenuState:
     """Menu for saving and loading games"""
-    
     def __init__(self, state_machine, game):
         """
         Args:
@@ -65,7 +65,7 @@ class SaveLoadMenuState:
         for name, path in [('hover', 'assets/sounds/button_hover.ogg'),
                             ('click', 'assets/sounds/button_click.ogg')]:
             try:
-                sound = pygame.mixer.Sound(path)
+                sound = pygame.mixer.Sound(resource_path(path))
                 sound.set_volume(0.5)
                 self.sounds[name] = sound
             except Exception as e:
@@ -202,6 +202,12 @@ class SaveLoadMenuState:
         if self.game.player is None:
             print("Creating player for load...")
             self.game.initialize_game()
+        
+        # Clear stale level/greenhouse state
+        if "level" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["level"]
+        if "greenhouse" in self.state_machine.state_instances:
+            del self.state_machine.state_instances["greenhouse"]
         
         # Load the save data
         success = self.game.save_manager.load_game(self.game, slot)

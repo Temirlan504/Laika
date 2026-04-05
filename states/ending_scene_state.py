@@ -17,7 +17,7 @@ class EndingSceneState:
         self.current_phase = self.PHASE_LYING_DOWN
         
         # Timing
-        self.lying_down_duration = 3.0  # 3 seconds of lying down before fade
+        self.lying_down_duration = 7.0  # 7 seconds of lying down before fade
         self.timer = 0
         
         # Player animation state
@@ -34,9 +34,16 @@ class EndingSceneState:
         self.show_text = True
     
     def on_enter(self, **kwargs):
-        """Called when entering this state"""
         print("[ENDING] Entering ending scene...")
         
+        self.current_phase = self.PHASE_LYING_DOWN
+        self.timer = 0
+        self.text_alpha = 0
+        self.text_fade_in = True
+        self.player_lying_down = False
+        self.fade_effect = FadeEffect(self.screen)  # fresh fade, no leftover state
+        self.scroll_y = self.screen.get_height()
+
         # Block player input
         if self.game.player:
             self.game.player.block_input()
@@ -54,6 +61,12 @@ class EndingSceneState:
             self.game.inventory_ui.visible = False
         if self.game.hotbar_ui:
             self.game.hotbar_ui.visible = False
+        if self.game.health_bar_ui:
+            self.game.health_bar_ui.visible = False
+        if self.game.oxygen_bar_ui:
+            self.game.oxygen_bar_ui.visible = False
+        if self.game.hunger_bar_ui:
+            self.game.hunger_bar_ui.visible = False
         
         # Reset state
         self.current_phase = self.PHASE_LYING_DOWN

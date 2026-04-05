@@ -1,6 +1,7 @@
 import random
 import pygame
 from utils.settings import *
+from utils.support import resource_path
 
 class GenericSprite(pygame.sprite.Sprite):
     def __init__(self, pos, surface, groups, z_index):
@@ -55,20 +56,16 @@ class Meteorite(pygame.sprite.Sprite):
         # Load meteor image (cached)
         if Meteorite._meteor_image is None:
             try:
-                # Load the meteor sprite
-                meteor_img = pygame.image.load("assets/tilesets/objects/meteor.png").convert_alpha()
-                # Scale to tile size (adjust size as needed)
+                meteor_img = pygame.image.load(resource_path("assets/tilesets/objects/meteor.png")).convert_alpha()
                 Meteorite._meteor_image = pygame.transform.scale(meteor_img, (TILE_SIZE, TILE_SIZE))
                 print("Meteor sprite loaded successfully!")
-            except Exception as e:
-                print(f"Warning: Could not load meteor.png: {e}")
-                print("Using placeholder circle instead")
-                # Fallback to gray circle
+            except FileNotFoundError:
+                print("Warning: Could not load meteor.png, using placeholder")
                 Meteorite._meteor_image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                 pygame.draw.circle(
-                    Meteorite._meteor_image, 
-                    (140, 140, 160), 
-                    (TILE_SIZE//2, TILE_SIZE//2), 
+                    Meteorite._meteor_image,
+                    (140, 140, 160),
+                    (TILE_SIZE//2, TILE_SIZE//2),
                     TILE_SIZE//2
                 )
         
@@ -120,3 +117,15 @@ class Meteorite(pygame.sprite.Sprite):
         flash_surface = self.image.copy()
         flash_surface.fill((255, 255, 255, 100), special_flags=pygame.BLEND_RGBA_ADD)
         self.image = flash_surface
+
+class DeathChest(pygame.sprite.Sprite):
+    def __init__(self, pos, groups):
+        super().__init__(groups)
+        try:
+            self.image = pygame.image.load(resource_path("assets/tilesets/objects/chest.png")).convert_alpha()
+            self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
+        except FileNotFoundError:
+            self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
+            self.image.fill((139, 90, 43))
+        self.rect  = self.image.get_rect(center=pos)
+        self.z_index = 2

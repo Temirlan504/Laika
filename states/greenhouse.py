@@ -1,8 +1,11 @@
 import pygame
 from camera import CameraGroup
 
+from items import get_item
+from ui.hud import PickupNotificationUI
 from utils.settings import *
 from utils.map_loader import MapLoader
+from utils.support import resource_path
 
 from greenhouse.soil import SoilLayer
 from greenhouse.chest import Chest
@@ -29,6 +32,15 @@ class GreenhouseState:
 
         self.hunger_system = HungerSystem()
 
+        # Pickup notifications
+        self.pickup_notification_ui = PickupNotificationUI(self.screen)
+        def _on_item_added(item_id, quantity):
+            item_def = get_item(item_id)
+            name = item_def.name if item_def else "Unknown Item"
+            self.pickup_notification_ui.notify(name, quantity)
+        
+        self.game.player.inventory.on_item_added = _on_item_added
+
         self.load_sounds()
     
     def load_sounds(self):
@@ -40,7 +52,7 @@ class GreenhouseState:
                             ('watering_soil', 'assets/sounds/watering_soil.ogg'),
                             ('hoe', 'assets/sounds/hoe.ogg')]:
             try:
-                sound = pygame.mixer.Sound(path)
+                sound = pygame.mixer.Sound(resource_path(path))
                 sound.set_volume(0.5)
                 self.sounds[name] = sound
             except Exception as e:
@@ -54,7 +66,7 @@ class GreenhouseState:
         self.greenhouse_data = self.game.greenhouse_data[greenhouse_id]
 
         # Load greenhouse map
-        self.map_loader = MapLoader("data/tmx/greenhouse.tmx")
+        self.map_loader = MapLoader(resource_path("data/tmx/greenhouse.tmx"))
 
         # ---- Setup chests (3 per greenhouse) ----
         if 'chests' not in self.greenhouse_data:
@@ -137,7 +149,8 @@ class GreenhouseState:
         self.chest_ui = ChestUI(
             self.game.screen,
             self.game.player.inventory,
-            chest.inventory
+            chest.inventory,
+            self.game.player.hotbar if hasattr(self.game.player, 'hotbar') else None
         )
         
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
@@ -296,7 +309,7 @@ class GreenhouseState:
                                 self.game.inventory_ui.swap_slots(from_info, to_info)
 
     def refill_oxygen(self, dt):
-        self.game.player.refill_oxygen(40 * dt)
+        self.game.player.refill_oxygen(10 * dt)
 
     def run(self, dt):
         self.screen.fill("black")
@@ -382,3 +395,6 @@ class GreenhouseState:
         
         if hasattr(self.game, 'hotbar_ui') and self.game.hotbar_ui:
             self.game.hotbar_ui.draw()
+
+        self.pickup_notification_ui.update(dt)
+        self.pickup_notification_ui.draw()

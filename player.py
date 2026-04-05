@@ -1,8 +1,11 @@
 import pygame
 from items import ItemType, get_item
+
 from utils.settings import *
 from utils.support import import_folder
 from utils.timer import Timer
+from utils.support import resource_path
+
 from systems.inventory_system import Hotbar, Inventory
 
 class Player(pygame.sprite.Sprite):
@@ -13,6 +16,7 @@ class Player(pygame.sprite.Sprite):
         self._load_sounds()
         self._footstep_index = 0
         self._mining_index = 0
+        self._eating = False
 
         self.status = 'down_idle'
         self.frame_index = 0
@@ -60,7 +64,7 @@ class Player(pygame.sprite.Sprite):
         self.sounds = {}
         for i in range(1, 3):
             try:
-                sound = pygame.mixer.Sound(f"assets/sounds/footstep_{i}.ogg")
+                sound = pygame.mixer.Sound(resource_path(f"assets/sounds/footstep_{i}.ogg"))
                 sound.set_volume(0.4)
                 self.sounds[f'footstep_{i}'] = sound
             except Exception as e:
@@ -68,7 +72,7 @@ class Player(pygame.sprite.Sprite):
 
         for i in range(1, 2):
             try:
-                sound = pygame.mixer.Sound(f"assets/sounds/mining_{i}.ogg")
+                sound = pygame.mixer.Sound(resource_path(f"assets/sounds/mining_{i}.ogg"))
                 sound.set_volume(0.4)
                 self.sounds[f'mining_{i}'] = sound
             except Exception as e:
@@ -76,8 +80,8 @@ class Player(pygame.sprite.Sprite):
 
     def _give_starter_items(self):
         """Give player starting items - called once on initialization"""
-        self.inventory.add_item("potato_seed", 10)
-        self.inventory.add_item("tomato_seed", 5)
+        self.inventory.add_item("potato_seed", 5)
+        self.inventory.add_item("tomato_seed", 3)
         self.inventory.add_item("carrot_seed", 3)
         
         # Place starter tools in hotbar for convenience
@@ -222,9 +226,10 @@ class Player(pygame.sprite.Sprite):
                 if item_id:
                     item = get_item(item_id)
                     if item and item.type == ItemType.TOOL and item_id == 'pickaxe':
-                        self.timers['tool_use_lmb'].activate()
-                        self.frame_index = 0
-                        self.direction = pygame.math.Vector2(0, 0)
+                        if not self.timers['tool_use_lmb'].active:
+                            self.timers['tool_use_lmb'].activate()
+                            self.frame_index = 0
+                            self.direction = pygame.math.Vector2(0, 0)
             
             # RMB: Farming tools, seeds, food
             if mouse_buttons[2]:  # Right mouse button
@@ -240,9 +245,12 @@ class Player(pygame.sprite.Sprite):
                                    item.type == ItemType.FOOD)
                         
                         if is_usable:
-                            self.timers['tool_use_rmb'].activate()
-                            self.frame_index = 0
-                            self.direction = pygame.math.Vector2(0, 0)
+                            if not self.timers['tool_use_rmb'].active:
+                                if item.type == ItemType.FOOD:
+                                    self._eating = True
+                                self.timers['tool_use_rmb'].activate()
+                                self.frame_index = 0
+                                self.direction = pygame.math.Vector2(0, 0)
             
             # Harvest (interaction key) - E key
             if keys[pygame.K_e] and not self.timers['harvest'].active:
@@ -275,7 +283,8 @@ class Player(pygame.sprite.Sprite):
             'up_hoe': [], 'down_hoe': [], 'left_hoe': [], 'right_hoe': [],
             'up_pickaxe': [], 'down_pickaxe': [], 'left_pickaxe': [], 'right_pickaxe': [],
             'up_watering_can': [], 'down_watering_can': [], 'left_watering_can': [], 'right_watering_can': [],
-            'up_seed': [], 'down_seed': [], 'left_seed': [], 'right_seed': []
+            'up_seed': [], 'down_seed': [], 'left_seed': [], 'right_seed': [],
+            'up_eat': [], 'down_eat': [], 'left_eat': [], 'right_eat': []
         }
 
         for animation in self.animations.keys():
@@ -390,12 +399,17 @@ class Player(pygame.sprite.Sprite):
         # Update animation based on active timer
         if self.timers['tool_use_lmb'].active or self.timers['tool_use_rmb'].active:
             item_id = self.hotbar.get_selected_item_id()
-            if item_id:
+            if self._eating:
+                self.status = self.status.split('_')[0] + '_eat'
+            elif item_id:
                 item = get_item(item_id)
                 if item and item.type == ItemType.TOOL:
                     self.status = self.status.split('_')[0] + '_' + item_id
                 elif item and item.type == ItemType.SEED:
                     self.status = self.status.split('_')[0] + '_seed'
+        
+        if not self.timers['tool_use_rmb'].active and self._eating:
+            self._eating = False
     
     def update_timers(self):
         for timer in self.timers.values():
