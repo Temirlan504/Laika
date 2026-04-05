@@ -115,6 +115,9 @@ class MainMenuState:
         self.buttons.append(continue_btn)
 
         settings_btn = add_button("SETTINGS", 2, self.open_settings)
+        settings_btn.normal_color = (100, 100, 100)
+        settings_btn.hover_color = (100, 100, 100)
+        settings_btn.callback = None
         self.buttons.append(settings_btn)
 
         quit_btn = add_button("QUIT", 3, self.quit_game)
