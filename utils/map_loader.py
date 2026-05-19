@@ -20,7 +20,7 @@ class MapLoader:
 
     def setup(
         self, sprite_group, collision_sprites, interaction_sprites,
-        soil_sprites=None, ground_positions=None
+        soil_sprites=None, ground_positions=None, ice_sprites=None
     ):
         tmx_data = self.tmx_data
         SCALE = TILE_SIZE / tmx_data.tilewidth
@@ -131,6 +131,19 @@ class MapLoader:
                     rect=rect,
                     groups=[sprite_group, soil_sprites]
                 )
+        
+        # ---- Ice glacier zones ----
+        if self.has_layer('ice') and ice_sprites is not None:
+            from ice_glacier import IceGlacierTile
+            SCALE = TILE_SIZE / self.tmx_data.tilewidth
+            for obj in self.tmx_data.get_layer_by_name('ice'):
+                rect = pygame.Rect(
+                    obj.x * SCALE,
+                    obj.y * SCALE,
+                    obj.width * SCALE,
+                    obj.height * SCALE,
+                )
+                IceGlacierTile(rect=rect, groups=[sprite_group, ice_sprites])
 
         # ---- Player spawn ----
         if self.has_layer('markers'):

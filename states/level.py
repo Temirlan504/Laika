@@ -18,6 +18,7 @@ from systems.oxygen_system import OxygenSystem
 from systems.hunger_system import HungerSystem
 from ui.hud import IronOreCounterUI, OxygenWarningUI, PickupNotificationUI
 from greenhouse.chest import Chest
+from ice_glacier import IceGlacierLayer
 
 
 class LevelState:
@@ -38,6 +39,8 @@ class LevelState:
         self.build_mode = False
         self.delete_mode = False
         self.dome_sprites = pygame.sprite.Group()
+
+        self.ice_sprites = pygame.sprite.Group()
 
         self.ground_positions = []
         self.meteorites = pygame.sprite.Group()
@@ -181,8 +184,13 @@ class LevelState:
 
         self.game_map.setup(
             self.all_sprites, self.collision_sprites,
-            self.interaction_zones, ground_positions=self.ground_positions
+            self.interaction_zones,
+            ground_positions=self.ground_positions,
+            ice_sprites=self.ice_sprites,
         )
+ 
+        # Build the layer helper now that player exists
+        self.ice_layer = IceGlacierLayer(self.ice_sprites, self.game.player)
 
         default_start = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         if saved_position == default_start and self.game_map.player_spawnpoint:
@@ -682,14 +690,23 @@ class LevelState:
     def handle_tool_events(self):
         for event_data in self.game.player.consume_events():
             event_type, pos = event_data[0], event_data[1]
+ 
             if event_type == 'pickaxe':
                 threshold_sq = (TILE_SIZE * 0.7) ** 2
+ 
+                # 1. Try meteorites first (point sprites)
+                hit_meteor = False
                 for meteor in self.meteorites:
                     dx = meteor.rect.centerx - pos[0]
                     dy = meteor.rect.centery - pos[1]
                     if dx * dx + dy * dy <= threshold_sq:
                         meteor.mine(self.game.player)
+                        hit_meteor = True
                         break
+ 
+                # 2. Try ice glacier zones (area tiles) — only if no meteor hit
+                if not hit_meteor:
+                    self.ice_layer.handle_event('pickaxe', pos)
 
     # ------------------------------------------------------------------
     # Draw helpers
@@ -730,6 +747,8 @@ class LevelState:
 
         self.fade_effect.update(dt)
         self.night_overlay.update()
+
+        self.ice_layer.update()
 
         if self.sleep_state == SleepState.AWAKE and dt > 0:
             if self.game.inventory_ui:

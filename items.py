@@ -32,6 +32,13 @@ ITEMS = {
         max_stack=64,
         description="Raw iron ore from meteorites"
     ),
+    "ice_shard": Item(
+        "ice_shard",
+        "Ice Shard",
+        ItemType.RESOURCE,
+        max_stack=64,
+        description="A crystalline shard chipped from a frozen glacier"
+    ),
     
     # Seeds
     "potato_seed": Item(
