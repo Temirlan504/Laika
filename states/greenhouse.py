@@ -10,6 +10,7 @@ from utils.support import resource_path
 from greenhouse.soil import SoilLayer
 from greenhouse.chest import Chest
 from greenhouse.chest_ui import ChestUI
+from greenhouse.water_station import WaterStation
 
 from systems.hunger_system import HungerSystem
 
@@ -26,6 +27,8 @@ class GreenhouseState:
         self.chest_ui = None
         self.near_chest = False
         self.near_chest_index = None
+
+        self.SOIL_WATERING_COST = 50  # ml consumed per watering action
 
         # Exit door state
         self.near_exit = False
@@ -86,6 +89,8 @@ class GreenhouseState:
         self.soil_sprites = pygame.sprite.Group()
         self.soil_layer = SoilLayer(self.soil_sprites, self.game.player)
 
+        self.water_station = WaterStation()
+
         self.all_sprites = CameraGroup(
             self.game.player,
             self.screen,
@@ -99,6 +104,9 @@ class GreenhouseState:
             self.interaction_zones,
             self.soil_sprites
         )
+
+        if self.map_loader.water_station_bar_pos:
+            self.water_station.set_bar_pos(*self.map_loader.water_station_bar_pos)
 
         # Restore saved soil state
         soil_data = self.greenhouse_data['soil']
@@ -164,6 +172,13 @@ class GreenhouseState:
                 'plant': soil.plant
             }
         self.greenhouse_data['soil'] = soil_data
+
+    def near_soil(self, world_pos) -> bool:
+        """Return True if world_pos falls inside any soil tile rect."""
+        for soil in self.soil_sprites:
+            if soil.rect.collidepoint(world_pos):
+                return True
+        return False
 
     def _exit_greenhouse(self):
         """Save state and return to level."""
@@ -256,6 +271,9 @@ class GreenhouseState:
                             self.game.hotbar_ui.show()
 
                 elif event.key == pygame.K_e:
+                    if self.near_water_station:
+                        self.water_station.deposit_shards(self.game.player)
+                        return
                     if self.near_chest:
                         self.open_chest()
                     elif self.near_exit:
@@ -344,6 +362,24 @@ class GreenhouseState:
                     self.soil_layer.handle_event(event_type, pos, seed_id)
                 else:
                     print(f"[ERROR] Plant event missing seed_id! event_data: {event_data}")
+
+            elif event_type == 'water':
+                player = self.game.player
+                if self.near_water_station:
+                    # RMB near station → fill the can from the tank
+                    self.water_station.fill_watering_can(player)
+                elif self.near_soil(pos):
+                    # RMB on soil → water the tile, consume 1 ml from can
+                    if player.watering_can_ml > 0:
+                        self.soil_layer.handle_event('water', pos)
+                        player.watering_can_ml -= SOIL_WATERING_COST
+                        print(
+                            f"[GREENHOUSE] Used {SOIL_WATERING_COST} ml  "
+                            f"({player.watering_can_ml}/{player.watering_can_max_ml} ml remaining)"
+                        )
+                    else:
+                        print("[GREENHOUSE] Watering can is empty — refill at the water station.")
+
             else:
                 self.soil_layer.handle_event(event_type, pos)
 
@@ -367,6 +403,7 @@ class GreenhouseState:
 
         # --- Interaction zone detection ---
         self.near_chest = False
+        self.near_water_station = False
         self.near_chest_index = None
         self.near_exit = False
 
@@ -386,8 +423,19 @@ class GreenhouseState:
                     self.near_exit = True
                     self.game.interaction_prompt.show("Press E to Exit")
                     break
+        
+        for zone in self.interaction_zones:
+            if zone.name == "water_station" and zone.rect.colliderect(self.game.player.hitbox):
+                self.near_water_station = True
+                # Prompt changes depending on what the player holds
+                item_id = self.game.player.hotbar.get_selected_item_id()
+                if item_id == "watering_can":
+                    self.game.interaction_prompt.show("RMB to fill watering can")
+                else:
+                    self.game.interaction_prompt.show("Press E to deposit ice shards")
+                break
 
-        if not self.near_chest and not self.near_exit:
+        if not self.near_chest and not self.near_exit and not self.near_water_station:
             self.game.interaction_prompt.hide()
 
         if self.chest_ui and self.chest_ui.visible:
@@ -398,3 +446,4 @@ class GreenhouseState:
 
         self.pickup_notification_ui.update(dt)
         self.pickup_notification_ui.draw()
+        self.water_station.draw(self.screen, self.all_sprites.offset)

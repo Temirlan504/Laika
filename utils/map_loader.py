@@ -13,7 +13,9 @@ class MapLoader:
         self.map_width = self.tmx_data.width * TILE_SIZE
         self.map_height = self.tmx_data.height * TILE_SIZE
 
+        # Define Tiled markers
         self.player_spawnpoint = None
+        self.water_station_bar_pos = None
 
     def has_layer(self, name):
         return name in self.tmx_data.layernames
@@ -145,7 +147,7 @@ class MapLoader:
                 )
                 IceGlacierTile(rect=rect, groups=[sprite_group, ice_sprites])
 
-        # ---- Player spawn ----
+        # ---- Markers ----
         if self.has_layer('markers'):
             for obj in tmx_data.get_layer_by_name('markers'):
                 if obj.name == 'player_spawnpoint':
@@ -153,12 +155,19 @@ class MapLoader:
                         obj.x * SCALE + (obj.width * SCALE) / 2,
                         obj.y * SCALE + (obj.height * SCALE) / 2
                     )
+                    print(f"[MAP]Player spawnpoint: {self.player_spawnpoint}")
                 elif obj.name == 'starter_greenhouse':
                     self.starter_greenhouse_pos = (
                         obj.x * SCALE + (obj.width * SCALE) / 2,
                         obj.y * SCALE + (obj.height * SCALE) / 2
                     )
-                    print(f"Starter greenhouse position: {self.starter_greenhouse_pos}")
+                    print(f"[MAP]Starter greenhouse position: {self.starter_greenhouse_pos}")
+                elif obj.name == 'water_station_bar':
+                    self.water_station_bar_pos = (
+                        obj.x * SCALE + (obj.width * SCALE) / 2,
+                        obj.y * SCALE + (obj.height * SCALE) / 2
+                    )
+                    print(f"[MAP]Water station bar position: {self.water_station_bar_pos}")
 
         # ---- Interaction zones (generic: chest, doors, etc) ----
         if self.has_layer('interaction_zones'):

@@ -42,6 +42,10 @@ class Player(pygame.sprite.Sprite):
         self.current_oxygen = self.max_oxygen
         self.is_alive = True
 
+        # Watering can attributes
+        self.watering_can_ml = 0
+        self.watering_can_max_ml = 1000
+
         # Movement attributes
         self.direction = pygame.math.Vector2(0, 0)
         self.speed = 150
