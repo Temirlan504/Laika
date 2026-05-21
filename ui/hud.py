@@ -531,7 +531,7 @@ class PickupNotificationUI(UIElement):
 
     def notify(self, item_name, count):
         """Call this whenever an item is picked up."""
-        text = f"+{count} {item_name}"
+        text = f"{count} {item_name}"
 
         # If the same item is already showing, just reset its timer
         for entry in self._queue:

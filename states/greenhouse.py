@@ -379,6 +379,10 @@ class GreenhouseState:
                         )
                     else:
                         print("[GREENHOUSE] Watering can is empty — refill at the water station.")
+                        self.pickup_notification_ui.notify(
+                            "ml needed! Not enough water",
+                            self.SOIL_WATERING_COST
+                        )
 
             else:
                 self.soil_layer.handle_event(event_type, pos)

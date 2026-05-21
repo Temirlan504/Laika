@@ -7,11 +7,6 @@ WATERING_CAN_FILL_ML = 1_000   # how many ml fill the can per refill action
 
 
 class WaterBar:
-    """
-    A simple rectangular progress bar drawn at a fixed screen position.
-    Position is set from a Tiled marker (water_station_bar) via set_pos().
-    """
-
     BAR_W  = 80
     BAR_H  = 10
     BG_COL    = (40,  40,  60)
@@ -63,9 +58,6 @@ class WaterStation:
     def set_bar_pos(self, x, y):
         self.bar.set_world_pos(x, y)
 
-    # ------------------------------------------------------------------
-    # Actions
-    # ------------------------------------------------------------------
     def deposit_shards(self, player) -> int:
         """
         Remove every ice_shard from inventory + hotbar and add water.
