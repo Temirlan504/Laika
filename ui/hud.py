@@ -74,10 +74,6 @@ class DayUI(UIElement):
         self.screen.blit(time_surface, time_rect)
 
 
-# ---------------------------------------------------------------------------
-# Iron Ore Counter
-# ---------------------------------------------------------------------------
-
 class IronOreCounterUI(UIElement):
     GOAL        = 50    # Iron ore required to place a greenhouse dome
     CAP_DISPLAY = 99    # Maximum number shown before switching to "99+"
@@ -283,6 +279,7 @@ class HotbarUI:
             qty_shadow = self.qty_font.render(qty_text, True, (0, 0, 0))
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
+
 
 class HealthBarUI(UIElement):
     def __init__(self, player, screen):

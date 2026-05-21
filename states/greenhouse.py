@@ -370,11 +370,11 @@ class GreenhouseState:
                     self.water_station.fill_watering_can(player)
                 elif self.near_soil(pos):
                     # RMB on soil → water the tile, consume 1 ml from can
-                    if player.watering_can_ml > 0:
+                    if player.watering_can_ml >= self.SOIL_WATERING_COST:
                         self.soil_layer.handle_event('water', pos)
-                        player.watering_can_ml -= SOIL_WATERING_COST
+                        player.watering_can_ml -= self.SOIL_WATERING_COST
                         print(
-                            f"[GREENHOUSE] Used {SOIL_WATERING_COST} ml  "
+                            f"[GREENHOUSE] Used {self.SOIL_WATERING_COST} ml  "
                             f"({player.watering_can_ml}/{player.watering_can_max_ml} ml remaining)"
                         )
                     else:

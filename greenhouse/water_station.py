@@ -1,8 +1,8 @@
 import pygame
 
 # 1 shard = 1 ml, max = 5,000 ml (5 L)
-WATER_MAX_ML   = 5_000
-SHARD_TO_ML    = 1        # 1 ice shard == 1 ml
+WATER_MAX_ML = 5_000
+SHARD_TO_ML = 5 # 1 ice shard == 5 ml
 WATERING_CAN_FILL_ML = 1_000   # how many ml fill the can per refill action
 
 
