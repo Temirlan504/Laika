@@ -32,6 +32,7 @@ class Player(pygame.sprite.Sprite):
         # Initialize inventory system
         self.inventory = Inventory(size=36)
         self.hotbar = Hotbar(num_slots=9)
+        self.hotbar.player = self
         self._give_starter_items()  # Give starter items on creation
 
         self.max_health = 100

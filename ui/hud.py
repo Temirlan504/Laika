@@ -273,12 +273,31 @@ class HotbarUI:
             name = ui_config.get_font(10).render(item.name[:6], True, ui_config.WHITE)
             self.screen.blit(name, name.get_rect(center=rect.center))
 
+        # Stack quantity
         if slot["quantity"] > 1:
             qty_text = str(slot["quantity"])
             qty = self.qty_font.render(qty_text, True, ui_config.WHITE)
             qty_shadow = self.qty_font.render(qty_text, True, (0, 0, 0))
+
             self.screen.blit(qty_shadow, (rect.right - 18, rect.bottom - 18))
             self.screen.blit(qty, (rect.right - 19, rect.bottom - 19))
+
+        # Watering can water level
+        if slot["item_id"] == "watering_can":
+            # Access player through hotbar owner if available
+            player = getattr(self.hotbar, "player", None)
+
+            if player:
+                water_text = f"{player.watering_can_ml}ml"
+
+                text = self.qty_font.render(water_text, True, (80, 180, 255))
+                shadow = self.qty_font.render(water_text, True, (0, 0, 0))
+
+                text_x = rect.centerx - text.get_width() // 2
+                text_y = rect.bottom - 14
+
+                self.screen.blit(shadow, (text_x + 1, text_y + 1))
+                self.screen.blit(text, (text_x, text_y))
 
 
 class HealthBarUI(UIElement):
