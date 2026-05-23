@@ -450,4 +450,7 @@ class GreenhouseState:
 
         self.pickup_notification_ui.update(dt)
         self.pickup_notification_ui.draw()
-        self.water_station.draw(self.screen, self.all_sprites.offset)
+
+        # Hide water station UI while chest is open
+        if not (self.chest_ui and self.chest_ui.visible):
+            self.water_station.draw(self.screen, self.all_sprites.offset)
